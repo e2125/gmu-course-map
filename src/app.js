@@ -1,22 +1,34 @@
 const COURSE_CODE_PATTERN = /\b([A-Z]{2,6})\s*(\d{3}[A-Z]?)\b/;
+const COURSE_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,6})\s*(\d{3}[A-Z]?)\b/g;
+const COMPLETED_STORAGE_KEY = "gmu-course-map.completed-courses";
 const MAX_RESULTS = 60;
 const LATER_UNLOCK_DEPTH = 3;
+const READY_NEXT_LIMIT = 12;
 
 const state = {
   dataset: null,
   courses: [],
   coursesByCode: new Map(),
+  completedCodes: new Set(),
   selectedCode: "CS 211",
 };
 
 const elements = {
   datasetPill: document.querySelector("#datasetPill"),
   search: document.querySelector("#courseSearch"),
+  completedForm: document.querySelector("#completedForm"),
+  completedInput: document.querySelector("#completedInput"),
+  completedCount: document.querySelector("#completedCount"),
+  readyCount: document.querySelector("#readyCount"),
+  readyNextList: document.querySelector("#readyNextList"),
+  clearProgressButton: document.querySelector("#clearProgressButton"),
   resultMeta: document.querySelector("#resultMeta"),
   courseResults: document.querySelector("#courseResults"),
   courseCode: document.querySelector("#courseCode"),
   courseTitle: document.querySelector("#courseTitle"),
   courseDescription: document.querySelector("#courseDescription"),
+  selectedStatus: document.querySelector("#selectedStatus"),
+  completedToggle: document.querySelector("#completedToggle"),
   impactNumber: document.querySelector("#impactNumber"),
   requiresCount: document.querySelector("#requiresCount"),
   requiresList: document.querySelector("#requiresList"),
@@ -31,6 +43,14 @@ const elements = {
 function normalizeCourseCode(value) {
   const match = value.trim().toUpperCase().match(COURSE_CODE_PATTERN);
   return match ? `${match[1]} ${match[2]}` : null;
+}
+
+function extractCourseCodes(value) {
+  const codes = new Set();
+  for (const match of value.toUpperCase().matchAll(COURSE_CODE_GLOBAL_PATTERN)) {
+    codes.add(`${match[1]} ${match[2]}`);
+  }
+  return [...codes].sort(compareCourses);
 }
 
 function courseSortKey(code) {
@@ -53,6 +73,27 @@ function compareCourses(firstCode, secondCode) {
 
 function getCourse(code) {
   return state.coursesByCode.get(code);
+}
+
+function isCompleted(code) {
+  return state.completedCodes.has(code);
+}
+
+function getMissingPrerequisites(course) {
+  return (course.prerequisites || []).filter((code) => !isCompleted(code));
+}
+
+function getCourseStatus(course) {
+  if (isCompleted(course.code)) {
+    return { label: "Completed", tone: "done" };
+  }
+
+  const missing = getMissingPrerequisites(course);
+  if (!missing.length) {
+    return { label: "Ready", tone: "ready" };
+  }
+
+  return { label: `${missing.length} missing`, tone: "blocked" };
 }
 
 function formatCourseLabel(code) {
@@ -133,6 +174,13 @@ function renderResults() {
       count.className = "result-count";
       count.textContent = `${course.direct_unlock_count || 0}`;
 
+      if (isCompleted(course.code)) {
+        const done = document.createElement("span");
+        done.className = "result-done";
+        done.textContent = "Done";
+        title.append(done);
+      }
+
       button.append(code, title, count);
       return button;
     }),
@@ -143,7 +191,13 @@ function createCourseButton(code, metaText = "") {
   const button = document.createElement("button");
   button.className = "mini-course";
   button.type = "button";
-  button.addEventListener("click", () => selectCourse(code));
+  button.dataset.complete = String(isCompleted(code));
+
+  if (getCourse(code)) {
+    button.addEventListener("click", () => selectCourse(code));
+  } else {
+    button.disabled = true;
+  }
 
   const label = document.createElement("span");
   label.className = "mini-course-label";
@@ -199,6 +253,38 @@ function renderLaterUnlocks(course) {
   }
 }
 
+function getReadyCourses() {
+  return state.courses
+    .filter((course) => !isCompleted(course.code) && getMissingPrerequisites(course).length === 0)
+    .sort((first, second) => {
+      if (second.direct_unlock_count !== first.direct_unlock_count) {
+        return second.direct_unlock_count - first.direct_unlock_count;
+      }
+      return compareCourses(first.code, second.code);
+    });
+}
+
+function renderPlanner() {
+  const readyCourses = getReadyCourses();
+  elements.completedCount.textContent = String(state.completedCodes.size);
+  elements.readyCount.textContent = String(readyCourses.length);
+
+  const readyNext = readyCourses.slice(0, READY_NEXT_LIMIT);
+  elements.readyNextList.replaceChildren();
+
+  if (!readyNext.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No ready courses found";
+    elements.readyNextList.append(empty);
+    return;
+  }
+
+  for (const course of readyNext) {
+    elements.readyNextList.append(createCourseButton(course.code, `${course.direct_unlock_count} unlocks`));
+  }
+}
+
 function renderBottlenecks() {
   const bottlenecks = [...state.courses]
     .filter((course) => course.direct_unlock_count > 0)
@@ -229,14 +315,75 @@ function selectCourse(code) {
 
   const prerequisites = course.prerequisites || [];
   const unlocks = course.unlocks || [];
+  const status = getCourseStatus(course);
   elements.requiresCount.textContent = String(prerequisites.length);
   elements.unlocksCount.textContent = String(unlocks.length);
   elements.rawPrereqText.textContent = course.prerequisite_text || "No required prerequisite text found.";
+  elements.selectedStatus.textContent = status.label;
+  elements.selectedStatus.dataset.tone = status.tone;
+  elements.completedToggle.textContent = isCompleted(course.code) ? "Remove Complete" : "Mark Complete";
 
-  renderCourseList(elements.requiresList, prerequisites, "No required course prerequisites found");
-  renderCourseList(elements.unlocksList, unlocks, "No direct unlocks found");
+  renderCourseList(
+    elements.requiresList,
+    prerequisites,
+    "No required course prerequisites found",
+    (prereqCode) => (isCompleted(prereqCode) ? "done" : "needed"),
+  );
+  renderCourseList(
+    elements.unlocksList,
+    unlocks,
+    "No direct unlocks found",
+    (unlockCode) => getCourseStatus(getCourse(unlockCode)).label.toLowerCase(),
+  );
   renderLaterUnlocks(course);
+  renderPlanner();
   renderResults();
+}
+
+function saveCompletedCodes() {
+  localStorage.setItem(
+    COMPLETED_STORAGE_KEY,
+    JSON.stringify([...state.completedCodes].sort(compareCourses)),
+  );
+}
+
+function loadCompletedCodes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COMPLETED_STORAGE_KEY) || "[]");
+    if (Array.isArray(saved)) {
+      state.completedCodes = new Set(saved.map(normalizeCourseCode).filter(Boolean));
+    }
+  } catch {
+    state.completedCodes = new Set();
+  }
+}
+
+function addCompletedCourses(rawValue) {
+  const codes = extractCourseCodes(rawValue);
+  for (const code of codes) {
+    state.completedCodes.add(code);
+  }
+
+  if (codes.length) {
+    saveCompletedCodes();
+    selectCourse(state.selectedCode);
+  }
+
+  return codes.length;
+}
+
+function toggleSelectedCompleted() {
+  const course = getCourse(state.selectedCode);
+  if (!course) return;
+
+  if (isCompleted(course.code)) {
+    state.completedCodes.delete(course.code);
+  } else {
+    state.completedCodes.add(course.code);
+  }
+
+  saveCompletedCodes();
+  selectCourse(course.code);
 }
 
 async function loadCourses() {
@@ -246,6 +393,7 @@ async function loadCourses() {
   }
 
   state.dataset = await response.json();
+  loadCompletedCodes();
   state.courses = [...state.dataset.courses].sort((first, second) =>
     compareCourses(first.code, second.code),
   );
@@ -264,6 +412,19 @@ async function loadCourses() {
 }
 
 elements.search.addEventListener("input", renderResults);
+elements.completedToggle.addEventListener("click", toggleSelectedCompleted);
+elements.completedForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const addedCount = addCompletedCourses(elements.completedInput.value);
+  if (addedCount) {
+    elements.completedInput.value = "";
+  }
+});
+elements.clearProgressButton.addEventListener("click", () => {
+  state.completedCodes.clear();
+  saveCompletedCodes();
+  selectCourse(state.selectedCode);
+});
 
 loadCourses().catch((error) => {
   document.body.innerHTML = `

@@ -26,6 +26,43 @@
           placeholder="CS 211, data, systems"
         />
 
+        <section class="planner-panel" aria-labelledby="plannerTitle">
+          <div class="planner-heading">
+            <h2 id="plannerTitle">Planner</h2>
+            <button id="clearProgressButton" class="text-button" type="button">Clear</button>
+          </div>
+
+          <form class="completed-form" id="completedForm">
+            <label for="completedInput">Add completed course</label>
+            <div class="completed-row">
+              <input
+                id="completedInput"
+                class="mini-input"
+                type="text"
+                autocomplete="off"
+                placeholder="MATH 125, CS 112"
+              />
+              <button class="add-button" type="submit">Add</button>
+            </div>
+          </form>
+
+          <div class="planner-stats">
+            <div>
+              <span id="completedCount">0</span>
+              <small>completed</small>
+            </div>
+            <div>
+              <span id="readyCount">0</span>
+              <small>ready</small>
+            </div>
+          </div>
+
+          <div class="ready-panel">
+            <div class="micro-heading">Ready Next</div>
+            <div class="course-list compact sidebar-list" id="readyNextList"></div>
+          </div>
+        </section>
+
         <div class="result-meta" id="resultMeta"></div>
         <div class="course-results" id="courseResults"></div>
       </aside>
@@ -36,6 +73,12 @@
             <p class="course-code" id="courseCode"></p>
             <h2 id="courseTitle"></h2>
             <p class="course-description" id="courseDescription"></p>
+            <div class="course-actions">
+              <span class="status-pill" id="selectedStatus">Not started</span>
+              <button class="primary-action" id="completedToggle" type="button">
+                Mark Complete
+              </button>
+            </div>
           </div>
           <div class="impact-panel" aria-label="Course impact">
             <span class="impact-number" id="impactNumber">0</span>
