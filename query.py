@@ -73,6 +73,33 @@ def print_course_list(
         print(f"- {format_course_line(code, courses_by_code)}")
 
 
+def format_logic_inline(logic: dict[str, Any], courses_by_code: dict[str, dict[str, Any]]) -> str:
+    if logic["type"] == "course":
+        return format_course_line(logic["code"], courses_by_code)
+
+    joiner = " and " if logic["type"] == "all" else " or "
+    parts = [format_logic_inline(item, courses_by_code) for item in logic.get("items", [])]
+
+    if logic["type"] == "any":
+        return "one of: " + joiner.join(parts)
+
+    return joiner.join(parts)
+
+
+def print_requirement_logic(course: dict[str, Any], courses_by_code: dict[str, dict[str, Any]]) -> None:
+    logic = course.get("prerequisite_logic")
+    if not logic:
+        print_course_list("Requires", [], courses_by_code)
+        return
+
+    print("\nRequires:")
+    if logic["type"] == "all":
+        for item in logic.get("items", []):
+            print(f"- {format_logic_inline(item, courses_by_code)}")
+    else:
+        print(f"- {format_logic_inline(logic, courses_by_code)}")
+
+
 def find_unlock_chain(
     start_code: str,
     unlocks_by_code: dict[str, list[str]],
@@ -113,7 +140,7 @@ def print_course_summary(
     if course.get("source_url"):
         print(f"Source: {course['source_url']}")
 
-    print_course_list("Requires", course.get("prerequisites", []), courses_by_code)
+    print_requirement_logic(course, courses_by_code)
     print_course_list("Directly unlocks", course.get("unlocks", []), courses_by_code)
 
     if chain_depth > 1:

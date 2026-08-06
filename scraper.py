@@ -9,11 +9,14 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 
 BASE_URL = "https://catalog.gmu.edu"
 COURSE_CODE_RE = re.compile(r"\b([A-Z]{2,6})[\s\u00a0]+(\d{3}[A-Z]?)\b")
+PREREQ_TOKEN_RE = re.compile(
+    r"\b[A-Z]{2,6}[\s\u00a0]+\d{3}[A-Z]?\b|\b(?:and|or)\b|[(),;]",
+)
 DEFAULT_DEPARTMENTS = [
     "cs",
     "math",
@@ -105,7 +108,8 @@ def parse_course_block(block: Any, department: str) -> dict[str, Any] | None:
 
     prereq_nodes = block.select("p.prereq")
     prereq_text = " ".join(clean_text(node.get_text(" ", strip=True)) for node in prereq_nodes)
-    prerequisites = extract_course_codes_from_html_nodes(prereq_nodes)
+    prerequisite_logic = parse_prerequisite_logic(prereq_nodes)
+    prerequisites = extract_course_codes_from_logic(prerequisite_logic)
 
     recommended_prerequisites = []
     recommended_prerequisite_text = []
@@ -125,6 +129,7 @@ def parse_course_block(block: Any, department: str) -> dict[str, Any] | None:
         "description": description,
         "prerequisite_text": prereq_text,
         "prerequisites": prerequisites,
+        "prerequisite_logic": prerequisite_logic,
         "recommended_prerequisite_text": " ".join(recommended_prerequisite_text),
         "recommended_prerequisites": recommended_prerequisites,
         "source_url": f"{BASE_URL}/search/?P={code.replace(' ', '%20')}",
@@ -137,6 +142,188 @@ def extract_course_codes_from_html_nodes(nodes: list[Any]) -> list[str]:
         codes.update(extract_course_codes_from_html(node))
 
     return sorted(codes, key=course_sort_key)
+
+
+def tokenize_prerequisite_node(node: Any) -> list[dict[str, str]]:
+    tokens: list[dict[str, str]] = []
+
+    def add_text_tokens(text: str) -> None:
+        for match in PREREQ_TOKEN_RE.finditer(text.replace("\xa0", " ")):
+            value = match.group(0)
+            lower_value = value.lower()
+
+            if lower_value == "and":
+                tokens.append({"type": "and"})
+            elif lower_value == "or" or value in {",", ";"}:
+                tokens.append({"type": "or"})
+            elif value == "(":
+                tokens.append({"type": "lparen"})
+            elif value == ")":
+                tokens.append({"type": "rparen"})
+            else:
+                code = normalize_course_code(value)
+                if code:
+                    tokens.append({"type": "course", "code": code})
+
+    def walk(current_node: Any) -> None:
+        if isinstance(current_node, NavigableString):
+            add_text_tokens(str(current_node))
+            return
+
+        if not isinstance(current_node, Tag):
+            return
+
+        if current_node.name == "a":
+            code = normalize_course_code(
+                current_node.get("title", "") or current_node.get_text(" ", strip=True)
+            )
+            if code:
+                tokens.append({"type": "course", "code": code})
+            return
+
+        if current_node.name == "sup":
+            return
+
+        for child in current_node.children:
+            walk(child)
+
+    walk(node)
+    return tokens
+
+
+class PrerequisiteParser:
+    def __init__(self, tokens: list[dict[str, str]]) -> None:
+        self.tokens = tokens
+        self.index = 0
+
+    def current(self) -> dict[str, str] | None:
+        if self.index >= len(self.tokens):
+            return None
+        return self.tokens[self.index]
+
+    def advance(self) -> dict[str, str] | None:
+        token = self.current()
+        if token:
+            self.index += 1
+        return token
+
+    def parse(self) -> dict[str, Any] | None:
+        return simplify_logic(self.parse_any())
+
+    def parse_any(self) -> dict[str, Any] | None:
+        items = [self.parse_all()]
+
+        while self.current() and self.current()["type"] == "or":
+            self.advance()
+            items.append(self.parse_all())
+
+        return combine_logic("any", items)
+
+    def parse_all(self) -> dict[str, Any] | None:
+        items = [self.parse_factor()]
+
+        while self.current() and self.current()["type"] == "and":
+            self.advance()
+            items.append(self.parse_factor())
+
+        return combine_logic("all", items)
+
+    def parse_factor(self) -> dict[str, Any] | None:
+        while self.current() and self.current()["type"] == "or":
+            self.advance()
+
+        token = self.current()
+        if not token or token["type"] == "rparen":
+            return None
+
+        if token["type"] == "course":
+            self.advance()
+            return {"type": "course", "code": token["code"]}
+
+        if token["type"] == "lparen":
+            self.advance()
+            item = self.parse_any()
+            if self.current() and self.current()["type"] == "rparen":
+                self.advance()
+            return item
+
+        self.advance()
+        return self.parse_factor()
+
+
+def combine_logic(kind: str, items: list[dict[str, Any] | None]) -> dict[str, Any] | None:
+    filtered_items = [item for item in items if item]
+    if not filtered_items:
+        return None
+
+    if len(filtered_items) == 1:
+        return filtered_items[0]
+
+    return {"type": kind, "items": filtered_items}
+
+
+def simplify_logic(logic: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not logic:
+        return None
+
+    if logic["type"] == "course":
+        return logic
+
+    simplified_items = []
+    seen_course_codes = set()
+    for item in logic.get("items", []):
+        simplified_item = simplify_logic(item)
+        if not simplified_item:
+            continue
+
+        if simplified_item["type"] == logic["type"]:
+            nested_items = simplified_item.get("items", [])
+        else:
+            nested_items = [simplified_item]
+
+        for nested_item in nested_items:
+            if nested_item["type"] == "course":
+                course_code = nested_item["code"]
+                if course_code in seen_course_codes:
+                    continue
+                seen_course_codes.add(course_code)
+            simplified_items.append(nested_item)
+
+    if not simplified_items:
+        return None
+    if len(simplified_items) == 1:
+        return simplified_items[0]
+
+    return {"type": logic["type"], "items": simplified_items}
+
+
+def extract_course_codes_from_logic(logic: dict[str, Any] | None) -> list[str]:
+    codes: set[str] = set()
+
+    def walk(item: dict[str, Any] | None) -> None:
+        if not item:
+            return
+
+        if item["type"] == "course":
+            codes.add(item["code"])
+            return
+
+        for child in item.get("items", []):
+            walk(child)
+
+    walk(logic)
+    return sorted(codes, key=course_sort_key)
+
+
+def parse_prerequisite_logic(nodes: list[Any]) -> dict[str, Any] | None:
+    expressions = []
+    for node in nodes:
+        tokens = tokenize_prerequisite_node(node)
+        expression = PrerequisiteParser(tokens).parse()
+        if expression:
+            expressions.append(expression)
+
+    return simplify_logic(combine_logic("all", expressions))
 
 
 def scrape_department(department: str) -> list[dict[str, Any]]:

@@ -81,8 +81,97 @@ function isCompleted(code) {
   return state.completedCodes.has(code);
 }
 
-function getMissingPrerequisites(course) {
-  return (course.prerequisites || []).filter((code) => !isCompleted(code));
+function getPrerequisiteLogic(course) {
+  if (course.prerequisite_logic) {
+    return course.prerequisite_logic;
+  }
+
+  const prerequisites = course.prerequisites || [];
+  if (!prerequisites.length) {
+    return null;
+  }
+
+  return {
+    type: "all",
+    items: prerequisites.map((code) => ({ type: "course", code })),
+  };
+}
+
+function isLogicSatisfied(logic) {
+  if (!logic) return true;
+
+  if (logic.type === "course") {
+    return isCompleted(logic.code);
+  }
+
+  const items = logic.items || [];
+  if (logic.type === "any") {
+    return items.some(isLogicSatisfied);
+  }
+
+  return items.every(isLogicSatisfied);
+}
+
+function countUnsatisfiedRequirements(logic) {
+  if (!logic || isLogicSatisfied(logic)) return 0;
+
+  if (logic.type === "course") {
+    return 1;
+  }
+
+  if (logic.type === "any") {
+    return 1;
+  }
+
+  return (logic.items || []).reduce(
+    (total, item) => total + countUnsatisfiedRequirements(item),
+    0,
+  );
+}
+
+function collectLogicCourseCodes(logic) {
+  if (!logic) return [];
+
+  if (logic.type === "course") {
+    return [logic.code];
+  }
+
+  return (logic.items || []).flatMap(collectLogicCourseCodes);
+}
+
+function applyRequirementMeta(logic, metaByCode) {
+  if (!logic) return;
+
+  if (logic.type === "course") {
+    metaByCode.set(logic.code, isCompleted(logic.code) ? "done" : "needed");
+    return;
+  }
+
+  if (logic.type === "any") {
+    const groupSatisfied = isLogicSatisfied(logic);
+    for (const code of collectLogicCourseCodes(logic)) {
+      if (isCompleted(code)) {
+        metaByCode.set(code, "done");
+      } else {
+        metaByCode.set(code, groupSatisfied ? "option" : "choose one");
+      }
+    }
+    return;
+  }
+
+  for (const item of logic.items || []) {
+    applyRequirementMeta(item, metaByCode);
+  }
+}
+
+function getRequirementMetaByCode(course) {
+  const metaByCode = new Map();
+  applyRequirementMeta(getPrerequisiteLogic(course), metaByCode);
+  return metaByCode;
+}
+
+function isCourseReady(course) {
+  return isLogicSatisfied(getPrerequisiteLogic(course));
 }
 
 function getCourseStatus(course) {
@@ -90,12 +179,12 @@ function getCourseStatus(course) {
     return { label: "Completed", tone: "done" };
   }
 
-  const missing = getMissingPrerequisites(course);
-  if (!missing.length) {
+  const missingCount = countUnsatisfiedRequirements(getPrerequisiteLogic(course));
+  if (!missingCount) {
     return { label: "Ready", tone: "ready" };
   }
 
-  return { label: `${missing.length} missing`, tone: "blocked" };
+  return { label: `${missingCount} missing`, tone: "blocked" };
 }
 
 function getCodeStatus(code) {
@@ -338,6 +427,7 @@ function createGraphConnector(label = "to") {
 function renderDependencyGraph(course) {
   const prerequisites = course.prerequisites || [];
   const directUnlocks = course.unlocks || [];
+  const requirementMetaByCode = getRequirementMetaByCode(course);
   const chain = getUnlockChain(course.code, LATER_UNLOCK_DEPTH);
   const laterUnlocks = chain.flatMap((level) =>
     level.depth > 1 ? level.codes.map((code) => ({ code, depth: level.depth })) : [],
@@ -352,7 +442,7 @@ function renderDependencyGraph(course) {
       "Requires",
       prerequisites,
       "No course prereqs",
-      (code) => (isCompleted(code) ? "done" : "needed"),
+      (code) => requirementMetaByCode.get(code) || "needed",
     ),
     createGraphConnector("requires selected course"),
     createGraphColumn(
@@ -382,7 +472,7 @@ function renderDependencyGraph(course) {
 
 function getReadyCourses() {
   return state.courses
-    .filter((course) => !isCompleted(course.code) && getMissingPrerequisites(course).length === 0)
+    .filter((course) => !isCompleted(course.code) && isCourseReady(course))
     .sort((first, second) => {
       if (second.direct_unlock_count !== first.direct_unlock_count) {
         return second.direct_unlock_count - first.direct_unlock_count;
@@ -443,6 +533,7 @@ function selectCourse(code) {
   const prerequisites = course.prerequisites || [];
   const unlocks = course.unlocks || [];
   const status = getCourseStatus(course);
+  const requirementMetaByCode = getRequirementMetaByCode(course);
   elements.requiresCount.textContent = String(prerequisites.length);
   elements.unlocksCount.textContent = String(unlocks.length);
   elements.rawPrereqText.textContent = course.prerequisite_text || "No required prerequisite text found.";
@@ -454,7 +545,7 @@ function selectCourse(code) {
     elements.requiresList,
     prerequisites,
     "No required course prerequisites found",
-    (prereqCode) => (isCompleted(prereqCode) ? "done" : "needed"),
+    (prereqCode) => requirementMetaByCode.get(prereqCode) || "needed",
   );
   renderCourseList(
     elements.unlocksList,
