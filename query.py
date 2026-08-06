@@ -1,0 +1,226 @@
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from collections import deque
+from pathlib import Path
+from typing import Any
+
+
+COURSE_CODE_RE = re.compile(r"\b([A-Z]{2,6})\s*(\d{3}[A-Z]?)\b")
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+
+def normalize_course_code(value: str) -> str | None:
+    match = COURSE_CODE_RE.search(value.strip().upper())
+    if not match:
+        return None
+
+    subject, number = match.groups()
+    return f"{subject} {number}"
+
+
+def course_sort_key(code: str) -> tuple[str, int, str]:
+    normalized_code = normalize_course_code(code)
+    if not normalized_code:
+        return (code.upper(), 0, "")
+
+    subject, number = normalized_code.split()
+    number_match = re.match(r"(\d+)([A-Z]?)", number)
+    if not number_match:
+        return (subject, 0, number)
+
+    numeric_part, suffix = number_match.groups()
+    return (subject, int(numeric_part), suffix)
+
+
+def load_dataset(path: Path) -> dict[str, Any]:
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+
+    if not path.exists():
+        raise SystemExit(
+            f"Could not find {path}. Run `python scraper.py --departments cs` first."
+        )
+
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def index_courses(dataset: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {course["code"]: course for course in dataset["courses"]}
+
+
+def format_course_line(code: str, courses_by_code: dict[str, dict[str, Any]]) -> str:
+    course = courses_by_code.get(code)
+    if not course:
+        return code
+
+    return f"{code}: {course['title']}"
+
+
+def print_course_list(
+    title: str,
+    codes: list[str],
+    courses_by_code: dict[str, dict[str, Any]],
+) -> None:
+    print(f"\n{title}:")
+    if not codes:
+        print("- None found")
+        return
+
+    for code in sorted(codes, key=course_sort_key):
+        print(f"- {format_course_line(code, courses_by_code)}")
+
+
+def find_unlock_chain(
+    start_code: str,
+    unlocks_by_code: dict[str, list[str]],
+    max_depth: int,
+) -> dict[int, list[str]]:
+    levels: dict[int, list[str]] = {}
+    visited = {start_code}
+    queue = deque((code, 1) for code in unlocks_by_code.get(start_code, []))
+
+    while queue:
+        code, depth = queue.popleft()
+        if code in visited or depth > max_depth:
+            continue
+
+        visited.add(code)
+        levels.setdefault(depth, []).append(code)
+
+        for unlocked_code in unlocks_by_code.get(code, []):
+            if unlocked_code not in visited:
+                queue.append((unlocked_code, depth + 1))
+
+    return {
+        depth: sorted(codes, key=course_sort_key)
+        for depth, codes in sorted(levels.items())
+    }
+
+
+def print_course_summary(
+    course: dict[str, Any],
+    courses_by_code: dict[str, dict[str, Any]],
+    unlocks_by_code: dict[str, list[str]],
+    chain_depth: int,
+    show_raw: bool,
+) -> None:
+    print(f"{course['code']}: {course['title']}")
+    if course.get("credits"):
+        print(f"Credits: {course['credits']}")
+    if course.get("source_url"):
+        print(f"Source: {course['source_url']}")
+
+    print_course_list("Requires", course.get("prerequisites", []), courses_by_code)
+    print_course_list("Directly unlocks", course.get("unlocks", []), courses_by_code)
+
+    if chain_depth > 1:
+        chain = find_unlock_chain(course["code"], unlocks_by_code, chain_depth)
+        later_codes = [
+            code
+            for depth, codes in chain.items()
+            if depth > 1
+            for code in codes
+        ]
+        print_course_list(
+            f"Later unlocks within {chain_depth} steps",
+            later_codes,
+            courses_by_code,
+        )
+
+    if show_raw and course.get("prerequisite_text"):
+        print("\nRaw prerequisite text:")
+        print(course["prerequisite_text"])
+
+
+def search_courses(query: str, courses: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    normalized_query = query.strip().lower()
+    matches = []
+
+    for course in courses:
+        haystack = " ".join(
+            [
+                course.get("code", ""),
+                course.get("title", ""),
+                course.get("description", ""),
+            ]
+        ).lower()
+        if normalized_query in haystack:
+            matches.append(course)
+
+    return sorted(matches, key=lambda course: course_sort_key(course["code"]))[:limit]
+
+
+def print_search_results(query: str, matches: list[dict[str, Any]]) -> None:
+    print(f"Search results for {query!r}:")
+    if not matches:
+        print("- No courses found")
+        return
+
+    for course in matches:
+        count = course.get("direct_unlock_count", 0)
+        plural = "" if count == 1 else "s"
+        print(f"- {course['code']}: {course['title']} ({count} direct unlock{plural})")
+
+
+def print_bottlenecks(
+    courses: list[dict[str, Any]],
+    courses_by_code: dict[str, dict[str, Any]],
+    limit: int,
+) -> None:
+    ranked_courses = sorted(
+        courses,
+        key=lambda course: (-course.get("direct_unlock_count", 0), course_sort_key(course["code"])),
+    )
+
+    print(f"Top {limit} direct-unlock bottlenecks:")
+    for course in ranked_courses[:limit]:
+        count = course.get("direct_unlock_count", 0)
+        print(f"- {format_course_line(course['code'], courses_by_code)} ({count})")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Query saved GMU course prerequisite data.")
+    parser.add_argument("query", nargs="?", help="Course code like CS 211, or text to search.")
+    parser.add_argument("--data", default="data/courses.json", help="Path to scraped course JSON.")
+    parser.add_argument("--depth", type=int, default=3, help="Unlock chain depth to show.")
+    parser.add_argument("--raw", action="store_true", help="Show raw prerequisite text.")
+    parser.add_argument("--limit", type=int, default=12, help="Search or bottleneck result limit.")
+    parser.add_argument(
+        "--bottlenecks",
+        action="store_true",
+        help="Show courses that directly unlock the most other courses.",
+    )
+    args = parser.parse_args()
+
+    dataset = load_dataset(Path(args.data))
+    courses = dataset["courses"]
+    courses_by_code = index_courses(dataset)
+    unlocks_by_code = dataset.get("unlocks", {})
+
+    if args.bottlenecks:
+        print_bottlenecks(courses, courses_by_code, args.limit)
+        return
+
+    if not args.query:
+        raise SystemExit("Give me a course code, search text, or use --bottlenecks.")
+
+    code = normalize_course_code(args.query)
+    if code and code in courses_by_code:
+        print_course_summary(
+            courses_by_code[code],
+            courses_by_code,
+            unlocks_by_code,
+            args.depth,
+            args.raw,
+        )
+        return
+
+    matches = search_courses(args.query, courses, args.limit)
+    print_search_results(args.query, matches)
+
+
+if __name__ == "__main__":
+    main()

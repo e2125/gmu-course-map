@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GMU Course Map</title>
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Course search">
+        <div class="brand">
+          <div>
+            <p class="eyebrow">George Mason</p>
+            <h1>Course Map</h1>
+          </div>
+          <span class="dataset-pill" id="datasetPill">CS</span>
+        </div>
+
+        <label class="search-label" for="courseSearch">Search courses</label>
+        <input
+          id="courseSearch"
+          class="search-input"
+          type="search"
+          autocomplete="off"
+          placeholder="CS 211, data, systems"
+        />
+
+        <div class="result-meta" id="resultMeta"></div>
+        <div class="course-results" id="courseResults"></div>
+      </aside>
+
+      <main class="course-view">
+        <section class="course-hero" aria-labelledby="courseTitle">
+          <div>
+            <p class="course-code" id="courseCode"></p>
+            <h2 id="courseTitle"></h2>
+            <p class="course-description" id="courseDescription"></p>
+          </div>
+          <div class="impact-panel" aria-label="Course impact">
+            <span class="impact-number" id="impactNumber">0</span>
+            <span class="impact-label">direct unlocks</span>
+          </div>
+        </section>
+
+        <section class="detail-grid" aria-label="Course relationships">
+          <div class="detail-panel">
+            <div class="panel-heading">
+              <h3>Requires</h3>
+              <span id="requiresCount">0</span>
+            </div>
+            <div class="course-list" id="requiresList"></div>
+          </div>
+
+          <div class="detail-panel">
+            <div class="panel-heading">
+              <h3>Directly Unlocks</h3>
+              <span id="unlocksCount">0</span>
+            </div>
+            <div class="course-list" id="unlocksList"></div>
+          </div>
+        </section>
+
+        <section class="bottom-grid" aria-label="Planning context">
+          <div class="detail-panel">
+            <div class="panel-heading">
+              <h3>Later Unlocks</h3>
+              <span id="laterCount">0</span>
+            </div>
+            <div class="course-list compact" id="laterList"></div>
+          </div>
+
+          <div class="detail-panel">
+            <div class="panel-heading">
+              <h3>Bottlenecks</h3>
+              <span>Top 8</span>
+            </div>
+            <div class="course-list compact" id="bottleneckList"></div>
+          </div>
+        </section>
+
+        <details class="raw-panel">
+          <summary>Catalog prerequisite text</summary>
+          <p id="rawPrereqText"></p>
+        </details>
+      </main>
+    </div>
+
+    <script src="src/app.js" type="module"></script>
+  </body>
+</html>
