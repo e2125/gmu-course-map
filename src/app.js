@@ -30,6 +30,8 @@ const elements = {
   selectedStatus: document.querySelector("#selectedStatus"),
   completedToggle: document.querySelector("#completedToggle"),
   impactNumber: document.querySelector("#impactNumber"),
+  graphSummary: document.querySelector("#graphSummary"),
+  dependencyGraph: document.querySelector("#dependencyGraph"),
   requiresCount: document.querySelector("#requiresCount"),
   requiresList: document.querySelector("#requiresList"),
   unlocksCount: document.querySelector("#unlocksCount"),
@@ -94,6 +96,19 @@ function getCourseStatus(course) {
   }
 
   return { label: `${missing.length} missing`, tone: "blocked" };
+}
+
+function getCodeStatus(code) {
+  const course = getCourse(code);
+  if (course) {
+    return getCourseStatus(course);
+  }
+
+  if (isCompleted(code)) {
+    return { label: "Completed", tone: "done" };
+  }
+
+  return { label: "Needed", tone: "blocked" };
 }
 
 function formatCourseLabel(code) {
@@ -253,6 +268,118 @@ function renderLaterUnlocks(course) {
   }
 }
 
+function createGraphNode(code, metaText = "", isCurrent = false) {
+  const course = getCourse(code);
+  const status = getCodeStatus(code);
+  const button = document.createElement("button");
+  button.className = "graph-node";
+  button.type = "button";
+  button.dataset.tone = status.tone;
+  button.dataset.current = String(isCurrent);
+  button.dataset.complete = String(isCompleted(code));
+
+  if (course) {
+    button.addEventListener("click", () => selectCourse(code));
+  } else {
+    button.disabled = true;
+  }
+
+  const codeText = document.createElement("span");
+  codeText.className = "graph-node-code";
+  codeText.textContent = code;
+
+  const titleText = document.createElement("span");
+  titleText.className = "graph-node-title";
+  titleText.textContent = course?.title || "Outside current data";
+
+  const meta = document.createElement("span");
+  meta.className = "graph-node-meta";
+  meta.textContent = metaText || status.label;
+
+  button.append(codeText, titleText, meta);
+  return button;
+}
+
+function createGraphColumn(title, codes, emptyText, metaForCode = () => "", markCurrent = false) {
+  const column = document.createElement("section");
+  column.className = "graph-column";
+  column.setAttribute("aria-label", title);
+
+  const heading = document.createElement("div");
+  heading.className = "graph-column-title";
+  heading.textContent = title;
+
+  const body = document.createElement("div");
+  body.className = "graph-column-body";
+
+  if (!codes.length) {
+    const empty = document.createElement("p");
+    empty.className = "graph-empty";
+    empty.textContent = emptyText;
+    body.append(empty);
+  } else {
+    for (const code of [...codes].sort(compareCourses)) {
+      body.append(createGraphNode(code, metaForCode(code), markCurrent && code === state.selectedCode));
+    }
+  }
+
+  column.append(heading, body);
+  return column;
+}
+
+function createGraphConnector(label = "to") {
+  const connector = document.createElement("div");
+  connector.className = "graph-connector";
+  connector.setAttribute("aria-label", label);
+  connector.textContent = "->";
+  return connector;
+}
+
+function renderDependencyGraph(course) {
+  const prerequisites = course.prerequisites || [];
+  const directUnlocks = course.unlocks || [];
+  const chain = getUnlockChain(course.code, LATER_UNLOCK_DEPTH);
+  const laterUnlocks = chain.flatMap((level) =>
+    level.depth > 1 ? level.codes.map((code) => ({ code, depth: level.depth })) : [],
+  );
+  const laterCodes = laterUnlocks.map((item) => item.code);
+  const laterDepthByCode = new Map(laterUnlocks.map((item) => [item.code, item.depth]));
+  const totalVisible = prerequisites.length + 1 + directUnlocks.length + laterCodes.length;
+
+  elements.graphSummary.textContent = `${totalVisible} visible`;
+  elements.dependencyGraph.replaceChildren(
+    createGraphColumn(
+      "Requires",
+      prerequisites,
+      "No course prereqs",
+      (code) => (isCompleted(code) ? "done" : "needed"),
+    ),
+    createGraphConnector("requires selected course"),
+    createGraphColumn(
+      "Selected",
+      [course.code],
+      "",
+      () => getCourseStatus(course).label.toLowerCase(),
+      true,
+    ),
+    createGraphConnector("selected course unlocks direct courses"),
+    createGraphColumn(
+      "Direct Unlocks",
+      directUnlocks,
+      "No direct unlocks",
+      (code) => getCodeStatus(code).label.toLowerCase(),
+    ),
+    createGraphConnector("direct unlocks can lead to later courses"),
+    createGraphColumn(
+      "Later",
+      laterCodes,
+      "No later unlocks",
+      (code) => `${laterDepthByCode.get(code)} steps`,
+    ),
+  );
+
+}
+
 function getReadyCourses() {
   return state.courses
     .filter((course) => !isCompleted(course.code) && getMissingPrerequisites(course).length === 0)
@@ -335,6 +462,7 @@ function selectCourse(code) {
     "No direct unlocks found",
     (unlockCode) => getCourseStatus(getCourse(unlockCode)).label.toLowerCase(),
   );
+  renderDependencyGraph(course);
   renderLaterUnlocks(course);
   renderPlanner();
   renderResults();
@@ -400,7 +528,9 @@ async function loadCourses() {
   state.coursesByCode = new Map(state.courses.map((course) => [course.code, course]));
 
   const departments = state.dataset.metadata?.departments || [];
-  elements.datasetPill.textContent = departments.join(" + ") || "Courses";
+  elements.datasetPill.textContent =
+    departments.length > 3 ? `${departments.length} subjects` : departments.join(" + ") || "Courses";
+  elements.datasetPill.title = departments.join(", ");
 
   if (!getCourse(state.selectedCode) && state.courses.length) {
     state.selectedCode = state.courses[0].code;

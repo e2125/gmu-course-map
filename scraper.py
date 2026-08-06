@@ -14,6 +14,26 @@ from bs4 import BeautifulSoup
 
 BASE_URL = "https://catalog.gmu.edu"
 COURSE_CODE_RE = re.compile(r"\b([A-Z]{2,6})[\s\u00a0]+(\d{3}[A-Z]?)\b")
+DEFAULT_DEPARTMENTS = [
+    "cs",
+    "math",
+    "stat",
+    "ece",
+    "engh",
+    "comm",
+    "infs",
+    "hnrs",
+    "or",
+    "phys",
+    "cds",
+    "engr",
+    "bus",
+    "favs",
+    "me",
+    "cyse",
+    "syst",
+    "it",
+]
 
 
 def clean_text(value: str) -> str:
@@ -160,12 +180,37 @@ def add_unlocks(courses: list[dict[str, Any]]) -> dict[str, list[str]]:
     return sorted_unlocks
 
 
+def find_missing_prerequisites(courses: list[dict[str, Any]]) -> dict[str, list[str]]:
+    known_codes = {course["code"] for course in courses}
+    missing_references: dict[str, set[str]] = defaultdict(set)
+
+    for course in courses:
+        for prereq_code in course["prerequisites"]:
+            if prereq_code not in known_codes:
+                missing_references[prereq_code].add(course["code"])
+
+    return {
+        code: sorted(referencing_courses, key=course_sort_key)
+        for code, referencing_courses in sorted(
+            missing_references.items(),
+            key=lambda item: course_sort_key(item[0]),
+        )
+    }
+
+
 def build_dataset(departments: list[str]) -> dict[str, Any]:
     courses: list[dict[str, Any]] = []
     seen_codes: set[str] = set()
+    department_errors = []
 
     for department in departments:
-        for course in scrape_department(department):
+        try:
+            department_courses = scrape_department(department)
+        except requests.RequestException as error:
+            department_errors.append({"department": department.upper(), "error": str(error)})
+            continue
+
+        for course in department_courses:
             if course["code"] in seen_codes:
                 continue
 
@@ -180,16 +225,22 @@ def build_dataset(departments: list[str]) -> dict[str, Any]:
         for unlocked_code in unlocked_courses:
             edges.append({"from": prereq_code, "to": unlocked_code})
 
+    missing_prerequisites = find_missing_prerequisites(courses)
+
     return {
         "metadata": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source": "George Mason University Catalog",
             "departments": [department.upper() for department in departments],
             "source_urls": [f"{BASE_URL}/courses/{department.lower()}/" for department in departments],
+            "department_errors": department_errors,
+            "known_course_count": len(courses),
+            "missing_prerequisite_count": len(missing_prerequisites),
         },
         "courses": courses,
         "unlocks": unlocks,
         "edges": edges,
+        "missing_prerequisites": missing_prerequisites,
     }
 
 
@@ -234,8 +285,8 @@ def main() -> None:
     parser.add_argument(
         "--departments",
         nargs="+",
-        default=["cs"],
-        help="Catalog department slugs to scrape, like cs math stat.",
+        default=DEFAULT_DEPARTMENTS,
+        help="Catalog department slugs to scrape, like cs math stat. Defaults to common CS prereq subjects.",
     )
     parser.add_argument(
         "--output",
@@ -259,6 +310,12 @@ def main() -> None:
         write_dataset(dataset, Path(args.output))
         print(f"Wrote {len(dataset['courses'])} courses to {args.output}")
         print(f"Built {len(dataset['edges'])} prerequisite unlock edges")
+        missing_count = dataset["metadata"]["missing_prerequisite_count"]
+        print(f"Found {missing_count} referenced prerequisite courses outside this dataset")
+        if dataset["metadata"]["department_errors"]:
+            print("Skipped departments with errors:")
+            for item in dataset["metadata"]["department_errors"]:
+                print(f"- {item['department']}: {item['error']}")
 
     if args.show:
         print()

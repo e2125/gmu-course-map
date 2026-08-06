@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections import deque
+from collections import Counter, deque
 from pathlib import Path
 from typing import Any
 
@@ -181,6 +181,60 @@ def print_bottlenecks(
         print(f"- {format_course_line(course['code'], courses_by_code)} ({count})")
 
 
+def print_missing_prerequisites(
+    dataset: dict[str, Any],
+    courses_by_code: dict[str, dict[str, Any]],
+    limit: int,
+) -> None:
+    missing = dataset.get("missing_prerequisites", {})
+    metadata = dataset.get("metadata", {})
+    missing_codes_by_subject = Counter(code.split()[0] for code in missing)
+    references_by_subject = Counter(
+        {
+            subject: sum(
+                len(referencing_codes)
+                for code, referencing_codes in missing.items()
+                if code.startswith(f"{subject} ")
+            )
+            for subject in missing_codes_by_subject
+        }
+    )
+
+    print("Missing prerequisite coverage:")
+    print(f"- Known courses: {metadata.get('known_course_count', len(courses_by_code))}")
+    print(f"- Missing referenced courses: {len(missing)}")
+
+    department_errors = metadata.get("department_errors", [])
+    if department_errors:
+        print("\nSkipped departments:")
+        for item in department_errors:
+            print(f"- {item['department']}: {item['error']}")
+
+    if not missing:
+        print("\nNo missing prerequisite references found.")
+        return
+
+    print("\nMissing references by subject:")
+    for subject, reference_count in references_by_subject.most_common(min(limit, 12)):
+        missing_count = missing_codes_by_subject[subject]
+        plural = "" if missing_count == 1 else "s"
+        print(f"- {subject}: {reference_count} references across {missing_count} missing course{plural}")
+
+    ranked_missing = sorted(
+        missing.items(),
+        key=lambda item: (-len(item[1]), course_sort_key(item[0])),
+    )[:limit]
+
+    print(f"\nTop {len(ranked_missing)} missing prerequisite courses:")
+    for code, referencing_codes in ranked_missing:
+        plural = "" if len(referencing_codes) == 1 else "s"
+        print(f"- {code} referenced by {len(referencing_codes)} course{plural}")
+        for referencing_code in referencing_codes[:5]:
+            print(f"  - {format_course_line(referencing_code, courses_by_code)}")
+        if len(referencing_codes) > 5:
+            print(f"  - ...and {len(referencing_codes) - 5} more")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Query saved GMU course prerequisite data.")
     parser.add_argument("query", nargs="?", help="Course code like CS 211, or text to search.")
@@ -193,6 +247,11 @@ def main() -> None:
         action="store_true",
         help="Show courses that directly unlock the most other courses.",
     )
+    parser.add_argument(
+        "--missing",
+        action="store_true",
+        help="Show prerequisite course codes referenced by the data but not included in it.",
+    )
     args = parser.parse_args()
 
     dataset = load_dataset(Path(args.data))
@@ -204,8 +263,12 @@ def main() -> None:
         print_bottlenecks(courses, courses_by_code, args.limit)
         return
 
+    if args.missing:
+        print_missing_prerequisites(dataset, courses_by_code, args.limit)
+        return
+
     if not args.query:
-        raise SystemExit("Give me a course code, search text, or use --bottlenecks.")
+        raise SystemExit("Give me a course code, search text, or use --bottlenecks/--missing.")
 
     code = normalize_course_code(args.query)
     if code and code in courses_by_code:
