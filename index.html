@@ -175,7 +175,7 @@
           <div class="planner-heading">
             <div>
               <span class="section-kicker">Plan as you go</span>
-              <h3 id="plannerTitle">Completed courses</h3>
+              <h3 id="plannerTitle">Satisfied courses</h3>
             </div>
             <button id="clearProgressButton" class="text-button" type="button">Clear</button>
           </div>
@@ -196,8 +196,12 @@
 
           <div class="planner-stats">
             <div>
-              <span id="completedCount">0</span>
-              <small>completed</small>
+              <span id="masonCompletedCount">0</span>
+              <small>Mason done</small>
+            </div>
+            <div>
+              <span id="transferCount">0</span>
+              <small>transfer</small>
             </div>
             <div>
               <span id="readyCount">0</span>
@@ -340,6 +344,7 @@
               </button>
             </div>
             <div class="audit-course-list" id="auditCourseList"></div>
+            <p class="audit-transfer-note" id="auditTransferNote" hidden></p>
             <p class="audit-exception-note" id="auditExceptionNote" hidden></p>
           </section>
         </div>
@@ -347,12 +352,12 @@
         <footer class="audit-modal-footer">
           <button class="secondary-button" id="cancelAuditImportButton" type="button">Cancel</button>
           <button class="add-button" id="applyAuditImportButton" type="button" disabled>
-            Add completed courses
+            Add selected credits
           </button>
         </footer>
       </div>
     </section>
 
-    <script src="src/app.js?v=20260807-audit-import-v2" type="module"></script>
+    <script src="src/app.js?v=20260807-transfer-credit-v1" type="module"></script>
   </body>
 </html>

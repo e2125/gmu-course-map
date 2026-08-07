@@ -427,6 +427,11 @@ p {
   color: var(--green-deep);
 }
 
+.status-pill[data-tone="transfer"] {
+  background: rgba(47, 111, 149, 0.12);
+  color: var(--blue);
+}
+
 .status-pill[data-tone="ready"] {
   background: rgba(47, 111, 149, 0.1);
   color: var(--blue);
@@ -744,6 +749,11 @@ p {
 .graph-node[data-tone="done"] {
   border-color: rgba(0, 102, 51, 0.34);
   background: var(--green-soft);
+}
+
+.graph-node[data-tone="transfer"] {
+  border-color: rgba(47, 111, 149, 0.36);
+  background: #edf6fa;
 }
 
 .graph-node[data-tone="ready"] {
@@ -1114,7 +1124,7 @@ p {
 
 .planner-stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1562,6 +1572,11 @@ p {
   color: var(--green-deep);
 }
 
+.audit-course-row[data-transfer="true"] em {
+  background: rgba(47, 111, 149, 0.12);
+  color: var(--blue);
+}
+
 .audit-course-row[data-status="in-progress"] em {
   background: rgba(47, 111, 149, 0.1);
   color: var(--blue);
@@ -1572,6 +1587,16 @@ p {
   border-left: 3px solid var(--gold);
   background: rgba(255, 204, 51, 0.12);
   color: #604900;
+  padding: 7px 9px;
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.audit-transfer-note {
+  margin: 0;
+  border-left: 3px solid var(--blue);
+  background: rgba(47, 111, 149, 0.08);
+  color: #244f69;
   padding: 7px 9px;
   font-size: 0.64rem;
   line-height: 1.4;

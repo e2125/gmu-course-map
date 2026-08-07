@@ -33,6 +33,7 @@ test("understands Mason Stellic transfer and in-progress markers", () => {
 
   assert.deepEqual(result.completedCodes, ["CS 112"]);
   assert.deepEqual(result.inProgressCodes, ["CS 110"]);
+  assert.equal(result.courses.find((course) => course.code === "CS 112")?.grade, "T");
   assert.equal(result.courses.find((course) => course.code === "CS 262")?.status, "review");
 });
 
