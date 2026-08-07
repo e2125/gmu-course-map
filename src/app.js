@@ -2,6 +2,7 @@ import {
   calculateProgramProgress,
   getRequirementCandidateCodes,
 } from "./degree-progress.js";
+import { analyzeDegreeAuditText } from "./audit-import.js";
 import { buildConnectedMapModel } from "./connected-map.js";
 import {
   buildCourseImpactPath,
@@ -48,6 +49,9 @@ const state = {
   planBusy: false,
   planStatus: "Your progress is saved in this browser. Save it to create a share link.",
   comparisonPlan: null,
+  auditCourses: [],
+  auditAnalysis: null,
+  auditLastFocus: null,
   activeSuggestionIndex: -1,
   searchSuggestions: [],
 };
@@ -57,6 +61,21 @@ const elements = {
   search: document.querySelector("#courseSearch"),
   searchCombobox: document.querySelector("#searchCombobox"),
   searchSuggestions: document.querySelector("#searchSuggestions"),
+  openAuditImportButton: document.querySelector("#openAuditImportButton"),
+  auditImportModal: document.querySelector("#auditImportModal"),
+  closeAuditImportButton: document.querySelector("#closeAuditImportButton"),
+  cancelAuditImportButton: document.querySelector("#cancelAuditImportButton"),
+  auditFileInput: document.querySelector("#auditFileInput"),
+  auditDropzone: document.querySelector("#auditDropzone"),
+  auditPasteInput: document.querySelector("#auditPasteInput"),
+  analyzeAuditTextButton: document.querySelector("#analyzeAuditTextButton"),
+  auditImportStatus: document.querySelector("#auditImportStatus"),
+  auditImportResults: document.querySelector("#auditImportResults"),
+  auditResultsSummary: document.querySelector("#auditResultsSummary"),
+  auditCourseList: document.querySelector("#auditCourseList"),
+  auditExceptionNote: document.querySelector("#auditExceptionNote"),
+  toggleAuditCoursesButton: document.querySelector("#toggleAuditCoursesButton"),
+  applyAuditImportButton: document.querySelector("#applyAuditImportButton"),
   courseHero: document.querySelector("#courseHero"),
   graphPanel: document.querySelector("#graphPanel"),
   connectedMap: document.querySelector("#connectedMap"),
@@ -113,6 +132,175 @@ function extractCourseCodes(value) {
     codes.add(`${match[1]} ${match[2]}`);
   }
   return [...codes].sort(compareCourses);
+}
+
+function openAuditImport() {
+  state.auditLastFocus = document.activeElement;
+  elements.auditImportModal.hidden = false;
+  elements.closeAuditImportButton.focus();
+}
+
+function closeAuditImport() {
+  elements.auditImportModal.hidden = true;
+  if (state.auditLastFocus instanceof HTMLElement) {
+    state.auditLastFocus.focus();
+  }
+}
+
+function getAuditStatusLabel(course) {
+  if (course.status === "completed") {
+    return course.grade ? `Completed · ${course.grade}` : "Completed";
+  }
+  if (course.status === "in-progress") return "Registered / in progress";
+  if (course.status === "not-completed") {
+    return course.grade ? `Not completed · ${course.grade}` : "Not completed";
+  }
+  return "Needs review";
+}
+
+function getSelectedAuditCodes() {
+  return state.auditCourses.filter((course) => course.selected).map((course) => course.code);
+}
+
+function updateAuditApplyButton() {
+  const selectedCount = getSelectedAuditCodes().length;
+  elements.applyAuditImportButton.disabled = selectedCount === 0;
+  elements.applyAuditImportButton.textContent = selectedCount
+    ? `Add ${selectedCount} completed course${selectedCount === 1 ? "" : "s"}`
+    : "Add completed courses";
+  const completedCourses = state.auditCourses.filter((course) => course.status === "completed");
+  const allCompletedSelected = completedCourses.length
+    && completedCourses.every((course) => course.selected);
+  elements.toggleAuditCoursesButton.textContent = allCompletedSelected
+    ? "Clear selection"
+    : "Select completed";
+}
+
+function createAuditCourseRow(course) {
+  const label = document.createElement("label");
+  label.className = "audit-course-row";
+  label.dataset.status = course.status;
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = course.selected;
+  checkbox.disabled = course.status === "in-progress" || course.status === "not-completed";
+  checkbox.addEventListener("change", () => {
+    course.selected = checkbox.checked;
+    updateAuditApplyButton();
+  });
+
+  const copy = document.createElement("span");
+  const code = document.createElement("strong");
+  code.textContent = course.code;
+  const title = document.createElement("small");
+  title.textContent = getCourse(course.code)?.title || "Course not found in the current catalog";
+  copy.append(code, title);
+
+  const status = document.createElement("em");
+  status.textContent = getAuditStatusLabel(course);
+  label.append(checkbox, copy, status);
+  return label;
+}
+
+function renderAuditAnalysis(analysis, sourceLabel) {
+  state.auditAnalysis = analysis;
+  const knownCourses = analysis.courses.filter((course) => state.coursesByCode.has(course.code));
+  const unknownCount = analysis.courses.length - knownCourses.length;
+  state.auditCourses = knownCourses.map((course) => ({
+    ...course,
+    selected: course.status === "completed",
+  }));
+
+  elements.auditImportResults.hidden = !state.auditCourses.length;
+  elements.auditCourseList.replaceChildren(...state.auditCourses.map(createAuditCourseRow));
+  const completedCount = state.auditCourses.filter((course) => course.status === "completed").length;
+  const inProgressCount = state.auditCourses.filter((course) => course.status === "in-progress").length;
+  const reviewCount = state.auditCourses.filter((course) => course.status === "review").length;
+  elements.auditResultsSummary.textContent = [
+    `${completedCount} completed`,
+    `${inProgressCount} in progress`,
+    reviewCount ? `${reviewCount} to review` : null,
+  ].filter(Boolean).join(" · ");
+  elements.auditImportStatus.textContent = state.auditCourses.length
+    ? `${sourceLabel} analyzed locally. Review the detected courses before adding them.`
+    : `No recognizable catalog courses were found in ${sourceLabel}. Try the Extended report or paste its text.`;
+  if (unknownCount) {
+    elements.auditImportStatus.textContent += ` ${unknownCount} course code${unknownCount === 1 ? " was" : "s were"} outside the current catalog data.`;
+  }
+
+  elements.auditExceptionNote.hidden = analysis.exceptionDetailCount === 0;
+  elements.auditExceptionNote.textContent = analysis.exceptionDetailCount
+    ? "Exception details were detected. Substitutions and waivers are flagged for review and are not applied automatically."
+    : "";
+  updateAuditApplyButton();
+}
+
+function buildPdfPageText(items) {
+  const lines = [];
+  let currentLine = [];
+  let lastY = null;
+
+  const flushLine = () => {
+    const line = currentLine.join(" ").replace(/\s+/g, " ").trim();
+    if (line) lines.push(line);
+    currentLine = [];
+  };
+
+  for (const item of items) {
+    if (!("str" in item)) continue;
+    const y = item.transform?.[5] ?? lastY;
+    if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) flushLine();
+    if (item.str.trim()) currentLine.push(item.str.trim());
+    if (item.hasEOL) flushLine();
+    lastY = y;
+  }
+  flushLine();
+  return lines.join("\n");
+}
+
+async function extractPdfAuditText(file) {
+  const pdfjs = await import("../vendor/pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    "../vendor/pdf.worker.min.mjs",
+    import.meta.url,
+  ).href;
+  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  const document = await loadingTask.promise;
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(buildPdfPageText(content.items));
+  }
+  await document.destroy();
+  return pages.join("\n");
+}
+
+async function analyzeAuditFile(file) {
+  if (!file) return;
+  elements.auditImportStatus.textContent = `Reading ${file.name}…`;
+  elements.auditImportResults.hidden = true;
+  elements.applyAuditImportButton.disabled = true;
+  try {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const text = isPdf ? await extractPdfAuditText(file) : await file.text();
+    renderAuditAnalysis(analyzeDegreeAuditText(text), file.name);
+  } catch (error) {
+    elements.auditImportStatus.textContent =
+      `This audit could not be read: ${error.message}. Try downloading the Extended PDF again or paste the audit text.`;
+  }
+}
+
+function applyAuditImport() {
+  const selectedCodes = getSelectedAuditCodes();
+  if (!selectedCodes.length) return;
+  for (const code of selectedCodes) state.completedCodes.add(code);
+  saveCompletedCodes();
+  markPlanDirty();
+  state.planStatus = `${selectedCodes.length} completed course${selectedCodes.length === 1 ? "" : "s"} imported from your degree audit.`;
+  selectCourse(state.selectedCode);
+  closeAuditImport();
 }
 
 function courseSortKey(code) {
@@ -1365,6 +1553,52 @@ async function loadCourses() {
   renderBottlenecks();
   selectCourse(state.selectedCode);
 }
+
+elements.openAuditImportButton.addEventListener("click", openAuditImport);
+elements.closeAuditImportButton.addEventListener("click", closeAuditImport);
+elements.cancelAuditImportButton.addEventListener("click", closeAuditImport);
+elements.auditImportModal.addEventListener("click", (event) => {
+  if (event.target === elements.auditImportModal) closeAuditImport();
+});
+elements.auditFileInput.addEventListener("change", () => {
+  analyzeAuditFile(elements.auditFileInput.files?.[0]);
+});
+for (const eventName of ["dragenter", "dragover"]) {
+  elements.auditDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    elements.auditDropzone.dataset.dragging = "true";
+  });
+}
+for (const eventName of ["dragleave", "drop"]) {
+  elements.auditDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    elements.auditDropzone.dataset.dragging = "false";
+  });
+}
+elements.auditDropzone.addEventListener("drop", (event) => {
+  analyzeAuditFile(event.dataTransfer?.files?.[0]);
+});
+elements.analyzeAuditTextButton.addEventListener("click", () => {
+  const text = elements.auditPasteInput.value.trim();
+  if (!text) {
+    elements.auditImportStatus.textContent = "Paste audit text before choosing Analyze text.";
+    return;
+  }
+  renderAuditAnalysis(analyzeDegreeAuditText(text), "Pasted audit text");
+});
+elements.toggleAuditCoursesButton.addEventListener("click", () => {
+  const completedCourses = state.auditCourses.filter((course) => course.status === "completed");
+  const shouldSelect = !completedCourses.every((course) => course.selected);
+  for (const course of state.auditCourses) {
+    course.selected = course.status === "completed" ? shouldSelect : false;
+  }
+  elements.auditCourseList.replaceChildren(...state.auditCourses.map(createAuditCourseRow));
+  updateAuditApplyButton();
+});
+elements.applyAuditImportButton.addEventListener("click", applyAuditImport);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.auditImportModal.hidden) closeAuditImport();
+});
 
 elements.search.addEventListener("input", () => {
   state.activeSuggestionIndex = -1;

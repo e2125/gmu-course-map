@@ -224,6 +224,7 @@ class CourseMapHandler(BaseHTTPRequestHandler):
         allowed = (
             relative == "index.html"
             or relative.startswith("src/")
+            or relative.startswith("vendor/")
             or relative in {"data/courses.json", "data/programs.json"}
         )
         target = (ROOT / relative).resolve()

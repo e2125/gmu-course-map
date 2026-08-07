@@ -29,7 +29,7 @@
       content="https://mason-course-flow.e2125.chatgpt.site/og.png"
     />
     <title>Mason Course Flow</title>
-    <link rel="stylesheet" href="src/styles.css?v=20260807-course-flow-v2" />
+    <link rel="stylesheet" href="src/styles.css?v=20260807-audit-import-v1" />
   </head>
   <body>
     <a class="skip-link" href="#courseDiagram">Skip to course diagram</a>
@@ -73,7 +73,12 @@
         </select>
       </div>
 
-      <span class="dataset-pill" id="datasetPill">Courses</span>
+      <div class="topbar-actions">
+        <button class="audit-open-button" id="openAuditImportButton" type="button">
+          Import Audit
+        </button>
+        <span class="sr-only" id="datasetPill">Courses</span>
+      </div>
     </header>
 
     <p class="scope-meta" id="scopeMeta">All catalog courses remain searchable.</p>
@@ -260,6 +265,94 @@
       </aside>
     </div>
 
-    <script src="src/app.js?v=20260807-course-flow-v2" type="module"></script>
+    <section
+      class="audit-modal"
+      id="auditImportModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auditImportTitle"
+      hidden
+    >
+      <div class="audit-modal-card">
+        <header class="audit-modal-header">
+          <div>
+            <span class="section-kicker">Private browser import</span>
+            <h2 id="auditImportTitle">Import your degree audit</h2>
+          </div>
+          <button
+            class="audit-close-button"
+            id="closeAuditImportButton"
+            type="button"
+            aria-label="Close degree audit import"
+          >×</button>
+        </header>
+
+        <div class="audit-modal-body">
+          <div class="audit-settings-card">
+            <strong>Use these report settings</strong>
+            <div class="audit-setting-chips" aria-label="Recommended report settings">
+              <span>Extended</span>
+              <span>Official</span>
+              <span>Grades on</span>
+              <span>Exceptions on</span>
+              <span>Hidden courses on</span>
+            </div>
+            <p>Include every checked program block that belongs to your current CS bachelor’s degree.</p>
+          </div>
+
+          <label class="audit-dropzone" for="auditFileInput" id="auditDropzone">
+            <span class="audit-upload-mark" aria-hidden="true">↑</span>
+            <strong>Choose your audit PDF</strong>
+            <small>PDF or text file · processed only in this browser</small>
+            <input
+              class="sr-only"
+              id="auditFileInput"
+              type="file"
+              accept=".pdf,.txt,application/pdf,text/plain"
+            />
+          </label>
+
+          <details class="audit-paste-panel">
+            <summary>Or paste audit text</summary>
+            <label class="sr-only" for="auditPasteInput">Paste degree audit text</label>
+            <textarea
+              id="auditPasteInput"
+              rows="5"
+              placeholder="Paste copied audit text here, then choose Analyze text."
+            ></textarea>
+            <button class="secondary-button" id="analyzeAuditTextButton" type="button">
+              Analyze text
+            </button>
+          </details>
+
+          <div class="audit-status" id="auditImportStatus" role="status" aria-live="polite">
+            Nothing has been imported yet.
+          </div>
+
+          <section class="audit-results" id="auditImportResults" aria-labelledby="auditResultsTitle" hidden>
+            <div class="audit-results-heading">
+              <div>
+                <strong id="auditResultsTitle">Review detected courses</strong>
+                <span id="auditResultsSummary"></span>
+              </div>
+              <button class="text-button" id="toggleAuditCoursesButton" type="button">
+                Select completed
+              </button>
+            </div>
+            <div class="audit-course-list" id="auditCourseList"></div>
+            <p class="audit-exception-note" id="auditExceptionNote" hidden></p>
+          </section>
+        </div>
+
+        <footer class="audit-modal-footer">
+          <button class="secondary-button" id="cancelAuditImportButton" type="button">Cancel</button>
+          <button class="add-button" id="applyAuditImportButton" type="button" disabled>
+            Add completed courses
+          </button>
+        </footer>
+      </div>
+    </section>
+
+    <script src="src/app.js?v=20260807-audit-import-v1" type="module"></script>
   </body>
 </html>

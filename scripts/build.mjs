@@ -12,6 +12,7 @@ await Promise.all([
   cp(new URL("../index.html", import.meta.url), new URL("index.html", client)),
   cp(new URL("../og.png", import.meta.url), new URL("og.png", client)),
   cp(new URL("../src/", import.meta.url), new URL("src/", client), { recursive: true }),
+  cp(new URL("../vendor/", import.meta.url), new URL("vendor/", client), { recursive: true }),
   mkdir(new URL("data/", client), { recursive: true }).then(() =>
     Promise.all([
       cp(new URL("../data/courses.json", import.meta.url), new URL("data/courses.json", client)),

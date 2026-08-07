@@ -8,10 +8,11 @@
     "build": "node scripts/build.mjs",
     "db:generate": "drizzle-kit generate",
     "test": "node --test tests/*.test.js && .venv/bin/python -m unittest discover -s tests -p 'test_*.py' && .venv/bin/python check_logic.py",
-    "check": "node --check src/app.js && node --check src/connected-map.js && node --check src/course-path.js && node --check src/course-search.js && node --check src/degree-progress.js && node --check src/plan-sharing.js && node --check worker/index.js && node --check worker/plan-utils.js && npm test && npm run build"
+    "check": "node --check src/app.js && node --check src/audit-import.js && node --check src/connected-map.js && node --check src/course-path.js && node --check src/course-search.js && node --check src/degree-progress.js && node --check src/plan-sharing.js && node --check worker/index.js && node --check worker/plan-utils.js && npm test && npm run build"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.2"
+    "drizzle-orm": "0.45.2",
+    "pdfjs-dist": "^6.2.108"
   },
   "devDependencies": {
     "drizzle-kit": "0.31.10"
