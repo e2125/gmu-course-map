@@ -3,37 +3,173 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GMU Course Map</title>
-    <link rel="stylesheet" href="src/styles.css" />
+    <meta
+      name="description"
+      content="Explore George Mason courses as one clear, connected prerequisite diagram."
+    />
+    <meta property="og:title" content="Mason Course Flow" />
+    <meta
+      property="og:description"
+      content="See every prerequisite in one connected view."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Mason Course Flow" />
+    <meta
+      name="twitter:description"
+      content="See every prerequisite in one connected view."
+    />
+    <meta name="twitter:image" content="/og.png" />
+    <title>Mason Course Flow</title>
+    <link rel="stylesheet" href="src/styles.css?v=20260807-course-flow-v2" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="Course search">
-        <div class="brand">
-          <div>
-            <p class="eyebrow">George Mason</p>
-            <h1>Course Map</h1>
-          </div>
-          <span class="dataset-pill" id="datasetPill">CS</span>
-        </div>
+    <a class="skip-link" href="#courseDiagram">Skip to course diagram</a>
 
-        <label class="search-label" for="courseSearch">Search courses</label>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Mason Course Flow home">
+        <span class="brand-mark" aria-hidden="true">M</span>
+        <span>
+          <small>George Mason University</small>
+          <strong>Course Flow</strong>
+        </span>
+      </a>
+
+      <div class="search-combobox" id="searchCombobox">
+        <label class="sr-only" for="courseSearch">Find a GMU course</label>
+        <span class="search-icon" aria-hidden="true"></span>
         <input
           id="courseSearch"
           class="search-input"
           type="search"
+          role="combobox"
           autocomplete="off"
-          placeholder="CS 211, data, systems"
+          aria-autocomplete="list"
+          aria-controls="searchSuggestions"
+          aria-expanded="false"
+          placeholder="Search a course, like CS 211 or calculus"
         />
+        <div
+          class="search-suggestions"
+          id="searchSuggestions"
+          role="listbox"
+          aria-label="Recommended courses"
+          hidden
+        ></div>
+      </div>
+
+      <div class="degree-picker">
+        <label for="scopeSelect">Degree</label>
+        <select id="scopeSelect" class="scope-select">
+          <option value="all">All courses</option>
+        </select>
+      </div>
+
+      <span class="dataset-pill" id="datasetPill">Courses</span>
+    </header>
+
+    <p class="scope-meta" id="scopeMeta">All catalog courses remain searchable.</p>
+
+    <div class="app-shell">
+      <main class="map-workspace" id="courseDiagram">
+        <section class="course-hero" id="courseHero" aria-labelledby="courseTitle" tabindex="-1">
+          <div class="course-identity">
+            <p class="course-code" id="courseCode"></p>
+            <h1 id="courseTitle"></h1>
+            <p class="course-description" id="courseDescription"></p>
+            <div class="course-actions">
+              <span class="status-pill" id="selectedStatus">Not started</span>
+              <span class="degree-pill" id="degreeTag">Catalog course</span>
+              <button class="primary-action" id="completedToggle" type="button">
+                Mark Complete
+              </button>
+            </div>
+          </div>
+          <div class="impact-panel" aria-label="Course impact">
+            <span class="impact-number" id="impactNumber">0</span>
+            <span class="impact-label">courses open next</span>
+          </div>
+        </section>
+
+        <section class="graph-panel" id="graphPanel" aria-labelledby="graphTitle" tabindex="-1">
+          <div class="panel-heading">
+            <div class="path-heading-copy">
+              <span class="section-kicker">One connected view</span>
+              <h2 id="graphTitle">See what comes before and after</h2>
+              <p>Select any course card to make it the center of the diagram.</p>
+            </div>
+            <span id="graphSummary">0 courses</span>
+          </div>
+          <div class="graph-scroll">
+            <div class="connected-map" id="connectedMap">
+              <canvas class="course-map-edges" id="courseMapEdges" aria-hidden="true"></canvas>
+              <div class="dependency-graph" id="dependencyGraph"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="map-status-bar" aria-label="Course diagram key">
+          <div data-stage="before">
+            <span class="map-status-count" id="requiresCount">0</span>
+            <span><strong>Before</strong><small>prerequisites</small></span>
+          </div>
+          <div data-stage="next">
+            <span class="map-status-count" id="unlocksCount">0</span>
+            <span><strong>Next</strong><small>direct connections</small></span>
+          </div>
+          <div data-stage="later">
+            <span class="map-status-count" id="laterCount">0</span>
+            <span><strong>Later</strong><small>future branches</small></span>
+          </div>
+          <div class="map-line-key">
+            <span><i></i> direct</span>
+            <span><i data-indirect="true"></i> connected through another course</span>
+          </div>
+        </section>
+
+        <details class="raw-panel">
+          <summary>View the official prerequisite wording</summary>
+          <p id="rawPrereqText"></p>
+        </details>
+      </main>
+
+      <aside class="plan-rail" aria-label="Degree progress and course plan">
+        <div class="rail-heading">
+          <span class="section-kicker">Always in view</span>
+          <h2>Your degree at a glance</h2>
+          <p>No separate planner screen. Track progress while you explore the diagram.</p>
+        </div>
+
+        <section class="degree-panel" id="degreeProgressPanel" aria-labelledby="degreeProgressTitle">
+          <div class="degree-heading">
+            <h3 id="degreeProgressTitle">Degree progress</h3>
+            <span id="degreeProgressSummary">0/0</span>
+          </div>
+          <div
+            class="degree-overall"
+            role="progressbar"
+            aria-label="Overall modeled degree progress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <span id="degreeProgressBar"></span>
+          </div>
+          <div class="degree-progress-list" id="degreeProgressList"></div>
+        </section>
 
         <section class="planner-panel" aria-labelledby="plannerTitle">
           <div class="planner-heading">
-            <h2 id="plannerTitle">Planner</h2>
+            <div>
+              <span class="section-kicker">Plan as you go</span>
+              <h3 id="plannerTitle">Completed courses</h3>
+            </div>
             <button id="clearProgressButton" class="text-button" type="button">Clear</button>
           </div>
 
           <form class="completed-form" id="completedForm">
-            <label for="completedInput">Add completed course</label>
+            <label for="completedInput">Add one or more course codes</label>
             <div class="completed-row">
               <input
                 id="completedInput"
@@ -53,92 +189,77 @@
             </div>
             <div>
               <span id="readyCount">0</span>
-              <small>ready</small>
+              <small>ready now</small>
             </div>
           </div>
 
           <div class="ready-panel">
-            <div class="micro-heading">Ready Next</div>
-            <div class="course-list compact sidebar-list" id="readyNextList"></div>
+            <div class="micro-heading">Good options to take next</div>
+            <div class="course-list compact rail-list" id="readyNextList"></div>
           </div>
         </section>
 
-        <div class="result-meta" id="resultMeta"></div>
-        <div class="course-results" id="courseResults"></div>
-      </aside>
+        <section class="plan-save-panel" aria-labelledby="planSaveTitle">
+          <div class="plan-save-heading">
+            <div>
+              <span class="section-kicker" id="planSaveTitle">Keep this plan</span>
+              <span class="plan-access" id="planAccess">Browser only</span>
+            </div>
+          </div>
+          <label class="sr-only" for="planNameInput">Plan name</label>
+          <input
+            id="planNameInput"
+            class="mini-input"
+            type="text"
+            maxlength="80"
+            autocomplete="off"
+            placeholder="My graduation plan"
+          />
+          <div class="plan-action-row">
+            <button class="add-button" id="savePlanButton" type="button">Save &amp; Share</button>
+            <button class="secondary-button" id="copyPlanLinkButton" type="button" hidden>
+              Copy Link
+            </button>
+          </div>
+          <input
+            id="planShareUrl"
+            class="share-url"
+            type="text"
+            readonly
+            aria-label="Shareable plan link"
+            hidden
+          />
+          <p class="plan-status" id="planStatus" aria-live="polite">
+            Your progress is saved in this browser. Save it to create a share link.
+          </p>
 
-      <main class="course-view">
-        <section class="course-hero" aria-labelledby="courseTitle">
+          <details class="compare-panel">
+            <summary>Compare another saved plan</summary>
+            <label class="sr-only" for="comparePlanInput">Plan link or ID</label>
+            <div class="compare-row">
+              <input
+                id="comparePlanInput"
+                class="mini-input"
+                type="text"
+                autocomplete="off"
+                placeholder="Paste a plan link"
+              />
+              <button class="secondary-button" id="comparePlanButton" type="button">Compare</button>
+            </div>
+            <div class="comparison-result" id="comparisonResult"></div>
+          </details>
+        </section>
+
+        <section class="foundation-panel" aria-labelledby="foundationTitle">
           <div>
-            <p class="course-code" id="courseCode"></p>
-            <h2 id="courseTitle"></h2>
-            <p class="course-description" id="courseDescription"></p>
-            <div class="course-actions">
-              <span class="status-pill" id="selectedStatus">Not started</span>
-              <button class="primary-action" id="completedToggle" type="button">
-                Mark Complete
-              </button>
-            </div>
+            <span class="section-kicker">High-impact courses</span>
+            <h3 id="foundationTitle">Useful foundations</h3>
           </div>
-          <div class="impact-panel" aria-label="Course impact">
-            <span class="impact-number" id="impactNumber">0</span>
-            <span class="impact-label">direct unlocks</span>
-          </div>
+          <div class="course-list compact rail-list" id="bottleneckList"></div>
         </section>
-
-        <section class="graph-panel" aria-labelledby="graphTitle">
-          <div class="panel-heading">
-            <h3 id="graphTitle">Dependency Graph</h3>
-            <span id="graphSummary">0 courses</span>
-          </div>
-          <div class="graph-scroll">
-            <div class="dependency-graph" id="dependencyGraph"></div>
-          </div>
-        </section>
-
-        <section class="detail-grid" aria-label="Course relationships">
-          <div class="detail-panel">
-            <div class="panel-heading">
-              <h3>Requires</h3>
-              <span id="requiresCount">0</span>
-            </div>
-            <div class="course-list" id="requiresList"></div>
-          </div>
-
-          <div class="detail-panel">
-            <div class="panel-heading">
-              <h3>Directly Unlocks</h3>
-              <span id="unlocksCount">0</span>
-            </div>
-            <div class="course-list" id="unlocksList"></div>
-          </div>
-        </section>
-
-        <section class="bottom-grid" aria-label="Planning context">
-          <div class="detail-panel">
-            <div class="panel-heading">
-              <h3>Later Unlocks</h3>
-              <span id="laterCount">0</span>
-            </div>
-            <div class="course-list compact" id="laterList"></div>
-          </div>
-
-          <div class="detail-panel">
-            <div class="panel-heading">
-              <h3>Bottlenecks</h3>
-              <span>Top 8</span>
-            </div>
-            <div class="course-list compact" id="bottleneckList"></div>
-          </div>
-        </section>
-
-        <details class="raw-panel">
-          <summary>Catalog prerequisite text</summary>
-          <p id="rawPrereqText"></p>
-        </details>
-      </main>
+      </aside>
     </div>
 
-    <script src="src/app.js" type="module"></script>
+    <script src="src/app.js?v=20260807-course-flow-v2" type="module"></script>
   </body>
 </html>

@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,9 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 
 
 BASE_URL = "https://catalog.gmu.edu"
+COURSE_INDEX_URL = f"{BASE_URL}/courses/"
 COURSE_CODE_RE = re.compile(r"\b([A-Z]{2,6})[\s\u00a0]+(\d{3}[A-Z]?)\b")
+DEPARTMENT_PATH_RE = re.compile(r"^/courses/([a-z0-9-]+)/$")
 PREREQ_TOKEN_RE = re.compile(
     r"\b[A-Z]{2,6}[\s\u00a0]+\d{3}[A-Z]?\b|\b(?:and|or)\b|[(),;]",
 )
@@ -36,11 +39,39 @@ DEFAULT_DEPARTMENTS = [
     "cyse",
     "syst",
     "it",
+    "swe",
+    "phil",
+    "biol",
+    "chem",
+    "geol",
 ]
 
 
 def clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", value.replace("\xa0", " ")).strip()
+
+
+def extract_department_slugs(html: str) -> list[str]:
+    soup = BeautifulSoup(html, "html.parser")
+    departments: list[str] = []
+    for link in soup.select("a[href]"):
+        match = DEPARTMENT_PATH_RE.fullmatch(link.get("href", ""))
+        if match and match.group(1) not in departments:
+            departments.append(match.group(1))
+    return departments
+
+
+def discover_departments() -> list[str]:
+    response = requests.get(
+        COURSE_INDEX_URL,
+        headers={"User-Agent": "gmu-course-map course index scraper"},
+        timeout=30,
+    )
+    response.raise_for_status()
+    departments = extract_department_slugs(response.text)
+    if not departments:
+        raise ValueError("The GMU catalog course index did not list any departments")
+    return departments
 
 
 def normalize_course_code(value: str) -> str | None:
@@ -108,8 +139,15 @@ def parse_course_block(block: Any, department: str) -> dict[str, Any] | None:
 
     prereq_nodes = block.select("p.prereq")
     prereq_text = " ".join(clean_text(node.get_text(" ", strip=True)) for node in prereq_nodes)
-    prerequisite_logic = parse_prerequisite_logic(prereq_nodes)
+    prerequisite_logic, prerequisite_parse_status, prerequisite_parse_warnings = (
+        parse_prerequisite_details(prereq_nodes)
+    )
     prerequisites = extract_course_codes_from_logic(prerequisite_logic)
+    referenced_prerequisites = extract_course_codes_from_html_nodes(prereq_nodes)
+    unparsed_prerequisite_codes = sorted(
+        set(referenced_prerequisites) - set(prerequisites),
+        key=course_sort_key,
+    )
 
     recommended_prerequisites = []
     recommended_prerequisite_text = []
@@ -123,13 +161,16 @@ def parse_course_block(block: Any, department: str) -> dict[str, Any] | None:
 
     return {
         "code": code,
-        "department": department.upper(),
+        "department": code.split()[0],
         "title": title,
         "credits": parse_credits(full_title),
         "description": description,
         "prerequisite_text": prereq_text,
         "prerequisites": prerequisites,
         "prerequisite_logic": prerequisite_logic,
+        "prerequisite_parse_status": prerequisite_parse_status,
+        "prerequisite_parse_warnings": prerequisite_parse_warnings,
+        "unparsed_prerequisite_codes": unparsed_prerequisite_codes,
         "recommended_prerequisite_text": " ".join(recommended_prerequisite_text),
         "recommended_prerequisites": recommended_prerequisites,
         "source_url": f"{BASE_URL}/search/?P={code.replace(' ', '%20')}",
@@ -154,8 +195,12 @@ def tokenize_prerequisite_node(node: Any) -> list[dict[str, str]]:
 
             if lower_value == "and":
                 tokens.append({"type": "and"})
-            elif lower_value == "or" or value in {",", ";"}:
+            elif lower_value == "or":
                 tokens.append({"type": "or"})
+            elif value == ",":
+                tokens.append({"type": "comma"})
+            elif value == ";":
+                tokens.append({"type": "semicolon"})
             elif value == "(":
                 tokens.append({"type": "lparen"})
             elif value == ")":
@@ -188,7 +233,159 @@ def tokenize_prerequisite_node(node: Any) -> list[dict[str, str]]:
             walk(child)
 
     walk(node)
-    return tokens
+    return normalize_prerequisite_tokens(tokens)
+
+
+def token_depths(tokens: list[dict[str, str]]) -> list[int]:
+    depths = []
+    depth = 0
+    for token in tokens:
+        if token["type"] == "rparen":
+            depth = max(0, depth - 1)
+        depths.append(depth)
+        if token["type"] == "lparen":
+            depth += 1
+    return depths
+
+
+def comma_is_alternative(
+    tokens: list[dict[str, str]],
+    depths: list[int],
+    index: int,
+) -> bool:
+    depth = depths[index]
+    left = index - 1
+    while left >= 0:
+        token_type = tokens[left]["type"]
+        if depths[left] < depth or (depths[left] == depth and token_type == "semicolon"):
+            break
+        left -= 1
+
+    right = index + 1
+    while right < len(tokens):
+        token_type = tokens[right]["type"]
+        if depths[right] < depth or (depths[right] == depth and token_type == "semicolon"):
+            break
+        right += 1
+
+    has_or = any(
+        tokens[candidate]["type"] == "or" and depths[candidate] == depth
+        for candidate in range(left + 1, right)
+    )
+    if not has_or:
+        return False
+
+    comma_before_or = any(
+        tokens[candidate]["type"] == "comma"
+        and depths[candidate] == depth
+        and candidate + 1 < len(tokens)
+        and tokens[candidate + 1]["type"] == "or"
+        for candidate in range(left + 1, right)
+    )
+    if comma_before_or:
+        return True
+
+    previous_course = next(
+        (
+            tokens[candidate]["code"]
+            for candidate in range(index - 1, left, -1)
+            if tokens[candidate]["type"] == "course" and depths[candidate] == depth
+        ),
+        None,
+    )
+    next_course = next(
+        (
+            tokens[candidate]["code"]
+            for candidate in range(index + 1, right)
+            if tokens[candidate]["type"] == "course" and depths[candidate] == depth
+        ),
+        None,
+    )
+    if not previous_course or not next_course:
+        return False
+    return previous_course.split()[0] == next_course.split()[0]
+
+
+def separator_segment_has_or(
+    tokens: list[dict[str, str]],
+    depths: list[int],
+    index: int,
+) -> bool:
+    depth = depths[index]
+    left = index - 1
+    while left >= 0:
+        if depths[left] < depth or (
+            depths[left] == depth and tokens[left]["type"] == "semicolon"
+        ):
+            break
+        left -= 1
+    right = index + 1
+    while right < len(tokens):
+        if depths[right] < depth or (
+            depths[right] == depth and tokens[right]["type"] == "semicolon"
+        ):
+            break
+        right += 1
+    return any(
+        tokens[candidate]["type"] == "or" and depths[candidate] == depth
+        for candidate in range(left + 1, right)
+    )
+
+
+def normalize_prerequisite_tokens(tokens: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Resolve catalog punctuation and insert operators the catalog leaves implicit."""
+    if not tokens:
+        return []
+
+    depths = token_depths(tokens)
+    resolved: list[dict[str, str]] = []
+    for index, token in enumerate(tokens):
+        token_type = token["type"]
+        if token_type == "comma":
+            if comma_is_alternative(tokens, depths, index):
+                resolved.append({"type": "or"})
+            elif separator_segment_has_or(tokens, depths, index):
+                resolved.append({"type": "semicolon"})
+            else:
+                resolved.append({"type": "and"})
+        elif token_type == "semicolon":
+            following_type = tokens[index + 1]["type"] if index + 1 < len(tokens) else None
+            resolved.append({"type": "or" if following_type == "or" else "semicolon"})
+        else:
+            resolved.append(token)
+
+    with_implicit_operators: list[dict[str, str]] = []
+    ending_types = {"course", "rparen"}
+    starting_types = {"course", "lparen"}
+    for token in resolved:
+        if (
+            with_implicit_operators
+            and with_implicit_operators[-1]["type"] in ending_types
+            and token["type"] in starting_types
+        ):
+            with_implicit_operators.append({"type": "and"})
+        with_implicit_operators.append(token)
+
+    cleaned: list[dict[str, str]] = []
+    operator_types = {"and", "or", "semicolon"}
+    for token in with_implicit_operators:
+        token_type = token["type"]
+        if token_type in operator_types:
+            if not cleaned or cleaned[-1]["type"] == "lparen":
+                continue
+            if cleaned[-1]["type"] in operator_types:
+                if token_type == "or" or cleaned[-1]["type"] == "or":
+                    cleaned[-1] = {"type": "or"}
+                elif token_type == "semicolon" or cleaned[-1]["type"] == "semicolon":
+                    cleaned[-1] = {"type": "semicolon"}
+                continue
+        if token_type == "rparen" and cleaned and cleaned[-1]["type"] in operator_types:
+            cleaned.pop()
+        cleaned.append(token)
+
+    while cleaned and cleaned[-1]["type"] in operator_types:
+        cleaned.pop()
+    return cleaned
 
 
 class PrerequisiteParser:
@@ -208,7 +405,16 @@ class PrerequisiteParser:
         return token
 
     def parse(self) -> dict[str, Any] | None:
-        return simplify_logic(self.parse_any())
+        return simplify_logic(self.parse_sequence())
+
+    def parse_sequence(self) -> dict[str, Any] | None:
+        items = [self.parse_any()]
+
+        while self.current() and self.current()["type"] == "semicolon":
+            self.advance()
+            items.append(self.parse_any())
+
+        return combine_logic("all", items)
 
     def parse_any(self) -> dict[str, Any] | None:
         items = [self.parse_all()]
@@ -242,7 +448,7 @@ class PrerequisiteParser:
 
         if token["type"] == "lparen":
             self.advance()
-            item = self.parse_any()
+            item = self.parse_sequence()
             if self.current() and self.current()["type"] == "rparen":
                 self.advance()
             return item
@@ -315,15 +521,44 @@ def extract_course_codes_from_logic(logic: dict[str, Any] | None) -> list[str]:
     return sorted(codes, key=course_sort_key)
 
 
-def parse_prerequisite_logic(nodes: list[Any]) -> dict[str, Any] | None:
+def parse_prerequisite_details(
+    nodes: list[Any],
+) -> tuple[dict[str, Any] | None, str, list[str]]:
     expressions = []
+    warnings = []
     for node in nodes:
         tokens = tokenize_prerequisite_node(node)
-        expression = PrerequisiteParser(tokens).parse()
+        parser = PrerequisiteParser(tokens)
+        expression = parser.parse()
         if expression:
             expressions.append(expression)
+        if parser.current():
+            remaining_types = [token["type"] for token in tokens[parser.index:]]
+            warnings.append(f"Unparsed prerequisite tokens: {', '.join(remaining_types)}")
 
-    return simplify_logic(combine_logic("all", expressions))
+    logic = simplify_logic(combine_logic("all", expressions))
+    referenced_codes = set(extract_course_codes_from_html_nodes(nodes))
+    parsed_codes = set(extract_course_codes_from_logic(logic))
+    missing_codes = sorted(referenced_codes - parsed_codes, key=course_sort_key)
+    if missing_codes:
+        warnings.append(f"Course references missing from logic: {', '.join(missing_codes)}")
+
+    has_text = any(clean_text(node.get_text(" ", strip=True)) for node in nodes)
+    if not has_text:
+        status = "not_applicable"
+    elif not referenced_codes:
+        status = "non_course"
+    elif warnings:
+        status = "partial"
+    else:
+        status = "parsed"
+
+    return logic, status, warnings
+
+
+def parse_prerequisite_logic(nodes: list[Any]) -> dict[str, Any] | None:
+    logic, _, _ = parse_prerequisite_details(nodes)
+    return logic
 
 
 def scrape_department(department: str) -> list[dict[str, Any]]:
@@ -385,24 +620,64 @@ def find_missing_prerequisites(courses: list[dict[str, Any]]) -> dict[str, list[
     }
 
 
-def build_dataset(departments: list[str]) -> dict[str, Any]:
+def build_dataset(
+    departments: list[str],
+    resolve_missing: bool = False,
+    max_resolution_passes: int = 2,
+    max_workers: int = 1,
+) -> dict[str, Any]:
     courses: list[dict[str, Any]] = []
     seen_codes: set[str] = set()
     department_errors = []
+    requested_departments = list(dict.fromkeys(department.lower() for department in departments))
+    attempted_departments: list[str] = []
+    resolved_departments: list[str] = []
+    pending_departments = requested_departments
+    resolution_pass = 0
 
-    for department in departments:
-        try:
-            department_courses = scrape_department(department)
-        except requests.RequestException as error:
-            department_errors.append({"department": department.upper(), "error": str(error)})
-            continue
+    while pending_departments:
+        batch = [
+            department
+            for department in pending_departments
+            if department not in attempted_departments
+        ]
+        attempted_departments.extend(batch)
 
-        for course in department_courses:
-            if course["code"] in seen_codes:
+        def scrape_safely(department: str) -> tuple[str, list[dict[str, Any]] | None, str | None]:
+            try:
+                return department, scrape_department(department), None
+            except requests.RequestException as error:
+                return department, None, str(error)
+
+        worker_count = max(1, min(max_workers, len(batch)))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            batch_results = list(executor.map(scrape_safely, batch))
+
+        for department, department_courses, error in batch_results:
+            if error:
+                department_errors.append({"department": department.upper(), "error": error})
                 continue
 
-            seen_codes.add(course["code"])
-            courses.append(course)
+            for course in department_courses or []:
+                if course["code"] in seen_codes:
+                    continue
+
+                seen_codes.add(course["code"])
+                courses.append(course)
+
+        if not resolve_missing or resolution_pass >= max_resolution_passes:
+            break
+
+        current_missing = find_missing_prerequisites(courses)
+        pending_departments = sorted(
+            {
+                code.split()[0].lower()
+                for code in current_missing
+                if code.split()[0].lower() not in attempted_departments
+            }
+        )
+        resolved_departments.extend(pending_departments)
+        resolution_pass += 1
 
     courses = sorted(courses, key=lambda course: course_sort_key(course["code"]))
     unlocks = add_unlocks(courses)
@@ -413,16 +688,31 @@ def build_dataset(departments: list[str]) -> dict[str, Any]:
             edges.append({"from": prereq_code, "to": unlocked_code})
 
     missing_prerequisites = find_missing_prerequisites(courses)
+    parse_warning_count = sum(
+        bool(course.get("prerequisite_parse_warnings"))
+        for course in courses
+    )
+    non_course_prerequisite_count = sum(
+        course.get("prerequisite_parse_status") == "non_course"
+        for course in courses
+    )
 
     return {
         "metadata": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source": "George Mason University Catalog",
-            "departments": [department.upper() for department in departments],
-            "source_urls": [f"{BASE_URL}/courses/{department.lower()}/" for department in departments],
+            "departments": sorted({course["department"] for course in courses}),
+            "requested_departments": [department.upper() for department in requested_departments],
+            "resolved_departments": [department.upper() for department in resolved_departments],
+            "source_urls": [
+                f"{BASE_URL}/courses/{department}/"
+                for department in attempted_departments
+            ],
             "department_errors": department_errors,
             "known_course_count": len(courses),
             "missing_prerequisite_count": len(missing_prerequisites),
+            "prerequisite_parse_warning_count": parse_warning_count,
+            "non_course_prerequisite_count": non_course_prerequisite_count,
         },
         "courses": courses,
         "unlocks": unlocks,
@@ -476,6 +766,17 @@ def main() -> None:
         help="Catalog department slugs to scrape, like cs math stat. Defaults to common CS prereq subjects.",
     )
     parser.add_argument(
+        "--all-departments",
+        action="store_true",
+        help="Discover and scrape every subject listed on the official GMU course index.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Concurrent catalog requests. Defaults to 8.",
+    )
+    parser.add_argument(
         "--output",
         default="data/courses.json",
         help="Where to save the scraped JSON dataset.",
@@ -489,9 +790,24 @@ def main() -> None:
         action="store_true",
         help="Scrape and print summary without writing JSON.",
     )
+    parser.add_argument(
+        "--resolve-missing",
+        action="store_true",
+        help=(
+            "Scrape additional subject pages referenced by prerequisites, up to two passes, "
+            "before reporting unresolved courses."
+        ),
+    )
     args = parser.parse_args()
 
-    dataset = build_dataset(args.departments)
+    departments = discover_departments() if args.all_departments else args.departments
+    if args.all_departments:
+        print(f"Discovered {len(departments)} GMU course subjects")
+    dataset = build_dataset(
+        departments,
+        resolve_missing=args.resolve_missing,
+        max_workers=args.workers,
+    )
 
     if not args.no_write:
         write_dataset(dataset, Path(args.output))
@@ -499,6 +815,11 @@ def main() -> None:
         print(f"Built {len(dataset['edges'])} prerequisite unlock edges")
         missing_count = dataset["metadata"]["missing_prerequisite_count"]
         print(f"Found {missing_count} referenced prerequisite courses outside this dataset")
+        warning_count = dataset["metadata"]["prerequisite_parse_warning_count"]
+        print(f"Flagged {warning_count} courses with prerequisite parse warnings")
+        if dataset["metadata"]["resolved_departments"]:
+            resolved = ", ".join(dataset["metadata"]["resolved_departments"])
+            print(f"Expanded prerequisite coverage with: {resolved}")
         if dataset["metadata"]["department_errors"]:
             print("Skipped departments with errors:")
             for item in dataset["metadata"]["department_errors"]:

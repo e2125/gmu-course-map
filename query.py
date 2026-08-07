@@ -262,6 +262,44 @@ def print_missing_prerequisites(
             print(f"  - ...and {len(referencing_codes) - 5} more")
 
 
+def print_scrape_quality(dataset: dict[str, Any], limit: int) -> None:
+    courses = dataset.get("courses", [])
+    metadata = dataset.get("metadata", {})
+    statuses = Counter(
+        course.get("prerequisite_parse_status", "legacy")
+        for course in courses
+    )
+    warning_courses = [
+        course for course in courses if course.get("prerequisite_parse_warnings")
+    ]
+    non_course_courses = [
+        course
+        for course in courses
+        if course.get("prerequisite_parse_status") == "non_course"
+    ]
+
+    print("Scrape quality:")
+    print(f"- Courses: {len(courses)}")
+    print(f"- Prerequisite edges: {len(dataset.get('edges', []))}")
+    print(f"- Missing referenced courses: {metadata.get('missing_prerequisite_count', 0)}")
+    print(f"- Parse warnings: {len(warning_courses)}")
+    print(f"- Non-course prerequisite statements: {len(non_course_courses)}")
+    print("- Parse statuses: " + ", ".join(
+        f"{status}={count}" for status, count in sorted(statuses.items())
+    ))
+
+    if warning_courses:
+        print(f"\nFirst {min(limit, len(warning_courses))} parse warnings:")
+        for course in warning_courses[:limit]:
+            warnings = "; ".join(course["prerequisite_parse_warnings"])
+            print(f"- {course['code']}: {warnings}")
+
+    if non_course_courses:
+        print(f"\nFirst {min(limit, len(non_course_courses))} non-course prerequisites:")
+        for course in non_course_courses[:limit]:
+            print(f"- {course['code']}: {course.get('prerequisite_text', '')}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Query saved GMU course prerequisite data.")
     parser.add_argument("query", nargs="?", help="Course code like CS 211, or text to search.")
@@ -279,6 +317,11 @@ def main() -> None:
         action="store_true",
         help="Show prerequisite course codes referenced by the data but not included in it.",
     )
+    parser.add_argument(
+        "--quality",
+        action="store_true",
+        help="Summarize prerequisite parse coverage, warnings, and non-course requirements.",
+    )
     args = parser.parse_args()
 
     dataset = load_dataset(Path(args.data))
@@ -294,8 +337,14 @@ def main() -> None:
         print_missing_prerequisites(dataset, courses_by_code, args.limit)
         return
 
+    if args.quality:
+        print_scrape_quality(dataset, args.limit)
+        return
+
     if not args.query:
-        raise SystemExit("Give me a course code, search text, or use --bottlenecks/--missing.")
+        raise SystemExit(
+            "Give me a course code, search text, or use --bottlenecks/--missing/--quality."
+        )
 
     code = normalize_course_code(args.query)
     if code and code in courses_by_code:

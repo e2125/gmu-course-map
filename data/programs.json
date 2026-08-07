@@ -1,0 +1,768 @@
+{
+  "schema_version": 2,
+  "programs": [
+    {
+      "id": "cs-bs-2026",
+      "name": "Computer Science, BS",
+      "label": "CS BS Focus",
+      "catalog_year": "2026-2027",
+      "source_url": "https://catalog.gmu.edu/colleges-schools/engineering-computing/school-computing/computer-science/computer-science-bs/",
+      "generated_at": "2026-08-07T11:45:16.369251+00:00",
+      "notes": [
+        "Generated from the official catalog requirement tables.",
+        "Review scrape_warnings after catalog markup or wording changes."
+      ],
+      "scrape_warnings": [
+        "Electives: no course candidates were modeled",
+        "Catalog footnotes are preserved in source_notes; replacement paths are compiled, while enrollment limits and special credit caps still require review."
+      ],
+      "source_notes": [
+        "Must be taken within the first year as an Applied Computer Science or Computer Science major.",
+        "For each pair of courses referenced, only one of them may be used towards any degree requirements.",
+        "ECE 445 may be taken as a replacement for CS 465 .",
+        "At most 3 credits total of CS 491 Industry-Sponsored Senior Design Project may be counted toward the senior computer science requirement.",
+        "At most 6 credits total of CS 499 Special Topics in Computer Science may be counted toward the senior computer science requirement.",
+        "MATH 446 and OR 481 are equivalent, and cannot both be counted towards the requirements.",
+        "Only Bachelor's to Accelerated Master's Program and CS Honors Program students are eligible to enroll in graduate courses identified for those programs, including: CS 540 , CS 550 , CS 551 , CS 555 , CS 571 , CS 580 , CS 583 , CS 584 , CS 587 , SWE 619 , SWE 637 , SWE 642 . Only one of each pair of courses may be used for any requirements of this degree: CS 440 and CS 540 ; CS 450 and CS 550 ; CS 451 and CS 551 ; CS 455 and CS 555 ; CS 471 and CS 571 ; CS 480 and CS 580 ; CS 483 and CS 583 ; CS 484 and CS 584 ; CS 487 and CS 587 ; SWE 419 and SWE 619 ; SWE 437 and SWE 637 ; SWE 432 and SWE 642 .",
+        "Those who take MATH 352 Statistics may replace STAT 344 Probability and Statistics for Engineers and Scientists I with MATH 351 Probability .",
+        "Those planning to take MATH 352 Statistics may replace STAT 344 Probability and Statistics for Engineers and Scientists I with MATH 351 Probability .",
+        "None of CS 504 , CS 530 , or CS 531 may be used towards this degree."
+      ],
+      "requirements": [
+        {
+          "id": "computer-science-core",
+          "label": "Computer Science Core",
+          "role": "choice",
+          "required_courses": [
+            "CS 110",
+            "CS 211",
+            "CS 262",
+            "CS 310",
+            "CS 321",
+            "CS 330",
+            "CS 367",
+            "CS 405",
+            "CS 450"
+          ],
+          "option_groups": [
+            {
+              "label": "Choose one catalog path for Computer Science Core",
+              "required_count": 1,
+              "options": [
+                "CS 112",
+                {
+                  "courses": [
+                    "CS 108",
+                    "CS 109"
+                  ],
+                  "label": "or CS 108 & CS 109 Intro to Computer Programming, Part A (Mason Core) and Intro to Computer Programming, Part B"
+                }
+              ]
+            },
+            {
+              "label": "Select one of the following: 2",
+              "required_count": 1,
+              "options": [
+                "CS 471",
+                "CS 571"
+              ]
+            },
+            {
+              "label": "Select one of the following: 2",
+              "required_count": 1,
+              "options": [
+                "CS 483",
+                "CS 583"
+              ]
+            }
+          ],
+          "catalog_total_credits": 32
+        },
+        {
+          "id": "senior-computer-science",
+          "label": "Senior Computer Science",
+          "role": "choice",
+          "option_groups": [
+            {
+              "label": "Select one from the following:",
+              "required_count": 1,
+              "options": [
+                {
+                  "label": "or CS 555 Computer Communications and Networking",
+                  "alternatives": [
+                    "CS 455",
+                    "CS 555"
+                  ]
+                },
+                "CS 468",
+                "CS 475"
+              ]
+            },
+            {
+              "label": "Select three additional courses from the following:",
+              "required_count": 3,
+              "options": [
+                "CS 425",
+                {
+                  "label": "or CS 540 Compilers",
+                  "alternatives": [
+                    "CS 440",
+                    "CS 540"
+                  ]
+                },
+                "CS 450",
+                {
+                  "label": "or CS 551 Computer Graphics",
+                  "alternatives": [
+                    "CS 451",
+                    "CS 551"
+                  ]
+                },
+                "CS 452",
+                "CS 453",
+                {
+                  "label": "or CS 555 Computer Communications and Networking",
+                  "alternatives": [
+                    "CS 455",
+                    "CS 555"
+                  ]
+                },
+                "CS 463",
+                {
+                  "label": "ECE 445 may be taken as a replacement for CS 465 .",
+                  "alternatives": [
+                    "CS 465",
+                    {
+                      "courses": [
+                        "ECE 445"
+                      ],
+                      "label": "ECE 445 may be taken as a replacement for CS 465 ."
+                    }
+                  ]
+                },
+                "CS 468",
+                "CS 475",
+                "CS 477",
+                "CS 478",
+                {
+                  "label": "or CS 580 Introduction to Artificial Intelligence",
+                  "alternatives": [
+                    "CS 480",
+                    "CS 580"
+                  ]
+                },
+                "CS 482",
+                {
+                  "label": "or CS 584 Theory and Applications of Data Mining",
+                  "alternatives": [
+                    "CS 484",
+                    "CS 584"
+                  ]
+                },
+                "CS 485",
+                {
+                  "label": "or CS 587 Introduction to Cryptography",
+                  "alternatives": [
+                    "CS 487",
+                    "CS 587"
+                  ]
+                },
+                "CS 489",
+                "CS 491",
+                "CS 499",
+                {
+                  "label": "or OR 481 Numerical Methods in Engineering",
+                  "alternatives": [
+                    "MATH 446",
+                    "OR 481"
+                  ]
+                }
+              ]
+            }
+          ],
+          "catalog_total_credits": 12
+        },
+        {
+          "id": "mathematics",
+          "label": "Mathematics",
+          "role": "choice",
+          "required_courses": [
+            "MATH 114",
+            "MATH 125",
+            "MATH 203",
+            "MATH 213"
+          ],
+          "option_groups": [
+            {
+              "label": "Choose one catalog path for Mathematics",
+              "required_count": 1,
+              "options": [
+                "MATH 113",
+                {
+                  "courses": [
+                    "MATH 123",
+                    "MATH 124"
+                  ],
+                  "label": "or MATH 123 & MATH 124 Calculus with Algebra/Trigonometry, Part A and Calculus with Algebra/Trigonometry, Part B (Mason Core)"
+                }
+              ]
+            }
+          ],
+          "catalog_total_credits": 17
+        },
+        {
+          "id": "statistics",
+          "label": "Statistics",
+          "role": "required",
+          "required_courses": [],
+          "catalog_total_credits": 3,
+          "option_groups": [
+            {
+              "label": "Those who take MATH 352 Statistics may replace STAT 344 Probability and Statistics for Engineers and Scientists I with MATH 351 Probability .",
+              "required_count": 1,
+              "options": [
+                "STAT 344",
+                {
+                  "courses": [
+                    "MATH 351",
+                    "MATH 352"
+                  ],
+                  "label": "Those who take MATH 352 Statistics may replace STAT 344 Probability and Statistics for Engineers and Scientists I with MATH 351 Probability ."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "computer-science-related-courses",
+          "label": "Computer Science-Related Courses",
+          "role": "choice",
+          "credit_options": [
+            "STAT 354",
+            "OR 335",
+            "OR 441",
+            "OR 442",
+            {
+              "label": "or ECE 231 & ECE 232 Digital System Design and Digital System Design Lab",
+              "alternatives": [
+                "ECE 301",
+                {
+                  "courses": [
+                    "ECE 231",
+                    "ECE 232"
+                  ],
+                  "label": "or ECE 231 & ECE 232 Digital System Design and Digital System Design Lab"
+                }
+              ]
+            },
+            "ECE 350",
+            "ECE 446",
+            "ECE 447",
+            "ECE 455",
+            "ECE 511",
+            {
+              "label": "or SWE 619 Object-Oriented Software Specification and Construction",
+              "alternatives": [
+                "SWE 419",
+                "SWE 619"
+              ]
+            },
+            {
+              "label": "or SWE 642 Software Engineering for the World Wide Web",
+              "alternatives": [
+                "SWE 432",
+                "SWE 642"
+              ]
+            },
+            {
+              "label": "or SWE 637 Software Testing",
+              "alternatives": [
+                "SWE 437",
+                "SWE 637"
+              ]
+            },
+            "SWE 443",
+            "SYST 371",
+            "SYST 470",
+            "PHIL 371",
+            "PHIL 376",
+            "ENGH 388"
+          ],
+          "rules": [
+            {
+              "label": "Any MATH or CS course numbered above 300 (except MATH 351 ) 1,2,3",
+              "subject": "MATH",
+              "min_number": 301,
+              "exclude": [
+                "MATH 351"
+              ]
+            },
+            {
+              "label": "Any MATH or CS course numbered above 300 (except MATH 351 ) 1,2,3",
+              "subject": "CS",
+              "min_number": 301,
+              "exclude": [
+                "CS 504",
+                "CS 530",
+                "CS 531"
+              ]
+            },
+            {
+              "label": "Any SWE course numbered 300 or above except SWE 301 , SWE 401 and SWE 510 3",
+              "subject": "SWE",
+              "min_number": 300,
+              "exclude": [
+                "SWE 301",
+                "SWE 401",
+                "SWE 510"
+              ]
+            }
+          ],
+          "credits_needed": 6,
+          "catalog_total_credits": 6
+        },
+        {
+          "id": "natural-science",
+          "label": "Natural Science",
+          "role": "choice",
+          "credits_needed": 12,
+          "catalog_total_credits": 12,
+          "courses": [
+            "BIOL 102",
+            "BIOL 103",
+            "BIOL 105",
+            "BIOL 106",
+            "BIOL 107",
+            "CHEM 211",
+            "CHEM 212",
+            "CHEM 213",
+            "CHEM 214",
+            "GEOL 101",
+            "GEOL 102",
+            "GEOL 103",
+            "GEOL 104",
+            "PHYS 160",
+            "PHYS 161",
+            "PHYS 260",
+            "PHYS 261"
+          ],
+          "option_groups": [
+            {
+              "label": "Approved Two-Course Sequences with Laboratories",
+              "required_count": 1,
+              "options": [
+                {
+                  "courses": [
+                    "BIOL 102",
+                    "BIOL 103",
+                    "BIOL 105"
+                  ],
+                  "label": "Biology sequence"
+                },
+                {
+                  "courses": [
+                    "BIOL 103",
+                    "BIOL 105",
+                    "BIOL 106",
+                    "BIOL 107"
+                  ],
+                  "label": "Biology sequence"
+                },
+                {
+                  "courses": [
+                    "CHEM 211",
+                    "CHEM 212",
+                    "CHEM 213",
+                    "CHEM 214"
+                  ],
+                  "label": "Chemistry sequence"
+                },
+                {
+                  "courses": [
+                    "GEOL 101",
+                    "GEOL 102",
+                    "GEOL 103",
+                    "GEOL 104"
+                  ],
+                  "label": "Geology sequence"
+                },
+                {
+                  "courses": [
+                    "PHYS 160",
+                    "PHYS 161",
+                    "PHYS 260",
+                    "PHYS 261"
+                  ],
+                  "label": "Physics sequence"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "additional-mason-core",
+          "label": "Additional Mason Core",
+          "role": "choice",
+          "required_courses": [
+            "ENGH 302"
+          ],
+          "option_groups": [
+            {
+              "label": "Oral Communication",
+              "required_count": 1,
+              "options": [
+                {
+                  "label": "or COMM 101 Fundamentals of Communication (Mason Core)",
+                  "alternatives": [
+                    "COMM 100",
+                    "COMM 101"
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "Written Communication",
+              "required_count": 1,
+              "options": [
+                {
+                  "label": "or ENGH 101 Composition (Mason Core)",
+                  "alternatives": [
+                    "ENGH 100",
+                    "ENGH 101"
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "Literature",
+              "required_count": 1,
+              "options": [
+                "ARAB 325",
+                "ARAB 365",
+                "CHIN 310",
+                "CHIN 311",
+                "CHIN 325",
+                "CHIN 328",
+                "CLAS 250",
+                "CLAS 260",
+                "CLAS 340",
+                "CLAS 350",
+                "CLAS 360",
+                "ELED 258",
+                "ENGH 201",
+                "ENGH 202",
+                "ENGH 203",
+                "ENGH 204",
+                "ENGH 206",
+                "FREN 325",
+                "FREN 329",
+                "FRLN 330",
+                "GERM 325",
+                "HIST 334",
+                "HIST 381",
+                "HIST 403",
+                "INTS 101",
+                "INTS 363",
+                "ITAL 325",
+                "JAPA 340",
+                "KORE 311",
+                "PHIL 253",
+                "RELI 235",
+                "RELI 333",
+                "RELI 334",
+                "RELI 338",
+                "RELI 339",
+                "RUSS 325",
+                "RUSS 326",
+                "SEED 370",
+                "SPAN 325"
+              ],
+              "catalog_credits": 3
+            },
+            {
+              "label": "Arts",
+              "required_count": 1,
+              "options": [
+                "ARTH 101",
+                "ARTH 102",
+                "ARTH 103",
+                "ARTH 104",
+                "ARTH 200",
+                "ARTH 201",
+                "ARTH 203",
+                "ARTH 204",
+                "ARTH 206",
+                "ARTH 303",
+                "ARTH 311",
+                "ARTH 315",
+                "ARTH 317",
+                "ARTH 321",
+                "ARTH 322",
+                "ARTH 324",
+                "ARTH 333",
+                "ARTH 334",
+                "ARTH 335",
+                "ARTH 340",
+                "ARTH 341",
+                "ARTH 342",
+                "ARTH 343",
+                "ARTH 344",
+                "ARTH 345",
+                "ARTH 350",
+                "ARTH 360",
+                "ARTH 362",
+                "ARTH 370",
+                "ARTH 373",
+                "ARTH 375",
+                "ARTH 376",
+                "ARTH 382",
+                "ARTH 383",
+                "ARTH 384",
+                "AVT 103",
+                "AVT 104",
+                "AVT 105",
+                "AVT 215",
+                "AVT 222",
+                "AVT 232",
+                "AVT 243",
+                "AVT 252",
+                "AVT 253",
+                "AVT 262",
+                "AVT 385",
+                "DANC 101",
+                "DANC 119",
+                "DANC 125",
+                "DANC 131",
+                "DANC 145",
+                "DANC 225",
+                "DANC 231",
+                "DANC 245",
+                "DANC 301",
+                "DANC 331",
+                "DANC 390",
+                "DANC 425",
+                "DSGN 102",
+                "ENGH 270",
+                "ENGH 315",
+                "ENGH 370",
+                "ENGH 371",
+                "ENGH 372",
+                "ENGH 374",
+                "ENGH 396",
+                "FAVS 204",
+                "FAVS 225",
+                "FAVS 280",
+                "GAME 101",
+                "HIST 316",
+                "INTS 245",
+                "INTS 346",
+                "ITAL 320",
+                "MUSI 100",
+                "MUSI 101",
+                "MUSI 102",
+                "MUSI 106",
+                "MUSI 107",
+                "MUSI 280",
+                "MUSI 301",
+                "MUSI 302",
+                "MUSI 380",
+                "MUSI 381",
+                "MUSI 383",
+                "MUSI 385",
+                "MUSI 387",
+                "MUSI 389",
+                "MUSI 485",
+                "PHIL 156",
+                "RELI 237",
+                "THR 101",
+                "THR 150",
+                "THR 151",
+                "THR 210",
+                "THR 230",
+                "THR 411",
+                "THR 412"
+              ],
+              "catalog_credits": 3
+            },
+            {
+              "label": "Global History",
+              "required_count": 1,
+              "options": [
+                "HIST 125",
+                "HIST 394"
+              ],
+              "catalog_credits": 3
+            },
+            {
+              "label": "Social and Behavioral Sciences",
+              "required_count": 1,
+              "options": [
+                "AFAM 200",
+                "ANTH 114",
+                "ANTH 120",
+                "ANTH 121",
+                "ANTH 135",
+                "ANTH 363",
+                "ANTH 365",
+                "ANTH 396",
+                "BUS 100",
+                "CONF 101",
+                "CONS 410",
+                "CRIM 100",
+                "ECON 100",
+                "ECON 103",
+                "ECON 104",
+                "ECON 105",
+                "ECON 367",
+                "EDEP 110",
+                "EDEP 350",
+                "EDSE 203",
+                "EDSE 230",
+                "EDUC 200",
+                "GCH 325",
+                "GGS 103",
+                "GGS 301",
+                "GGS 304",
+                "GOVT 101",
+                "GOVT 103",
+                "GOVT 150",
+                "GOVT 203",
+                "GOVT 204",
+                "GOVT 367",
+                "HDFS 200",
+                "HEAL 230",
+                "HIST 121",
+                "HIST 122",
+                "HIST 314",
+                "HIST 321",
+                "INTS 300",
+                "INTS 304",
+                "INTS 310",
+                "INTS 316",
+                "INTS 317",
+                "INTS 319",
+                "INTS 321",
+                "INTS 331",
+                "INTS 334",
+                "INTS 336",
+                "INTS 347",
+                "INTS 362",
+                "INTS 434",
+                "INTS 436",
+                "INTS 437",
+                "KINE 110",
+                "LING 100",
+                "LING 306",
+                "PSYC 100",
+                "PSYC 211",
+                "PSYC 231",
+                "PSYC 333",
+                "RMGT 210",
+                "SOCI 101",
+                "SOCI 308",
+                "SOCI 315",
+                "SOCI 352",
+                "SOCI 355",
+                "SOCI 360",
+                "SOCW 200",
+                "SPAN 430",
+                "TOUR 311",
+                "WMST 200",
+                "WMST 208",
+                "WMST 320"
+              ],
+              "catalog_credits": 3
+            },
+            {
+              "label": "Global Contexts",
+              "required_count": 1,
+              "options": [
+                "ANTH 308",
+                "ANTH 309",
+                "ANTH 313",
+                "ANTH 317",
+                "ANTH 320",
+                "ANTH 331",
+                "ANTH 382",
+                "ARTH 320",
+                "BUS 200",
+                "CEIE 100",
+                "COMM 305",
+                "CONF 340",
+                "CRIM 405",
+                "CULT 320",
+                "DANC 118",
+                "ENGH 270",
+                "ENGH 374",
+                "EVPP 336",
+                "FAVS 300",
+                "FOLK 100",
+                "GCH 205",
+                "GEOC 109",
+                "GEOC 150",
+                "GERM 315",
+                "GGS 101",
+                "GGS 317",
+                "GLOA 101",
+                "GOVT 132",
+                "GOVT 133",
+                "GOVT 134",
+                "HIST 261",
+                "HIST 262",
+                "HIST 271",
+                "HIST 272",
+                "HIST 308",
+                "HIST 315",
+                "HIST 317",
+                "HIST 318",
+                "HIST 329",
+                "HIST 346",
+                "HIST 356",
+                "HIST 357",
+                "HIST 362",
+                "HIST 364",
+                "HIST 377",
+                "HIST 378",
+                "HIST 384",
+                "INTS 390",
+                "INTS 406",
+                "INYO 105",
+                "INYO 261",
+                "JAPA 310",
+                "KORE 362",
+                "MUSI 103",
+                "NEUR 355",
+                "PSYC 379",
+                "RELI 100",
+                "RELI 211",
+                "RELI 212",
+                "RELI 310",
+                "RELI 312",
+                "RELI 313",
+                "RELI 322",
+                "RELI 368",
+                "RELI 383",
+                "RELI 384",
+                "SOCI 120",
+                "SOCI 320",
+                "SOCI 332",
+                "SPAN 212",
+                "SPMT 346",
+                "SYST 202",
+                "THR 359",
+                "TOUR 210",
+                "WMST 100"
+              ],
+              "catalog_credits": 3
+            }
+          ],
+          "catalog_total_credits": 24
+        }
+      ],
+      "total_credits": 120,
+      "supplemental_source_urls": [
+        "https://catalog.gmu.edu/mason-core/"
+      ]
+    }
+  ]
+}
