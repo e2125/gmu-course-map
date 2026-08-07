@@ -25,7 +25,10 @@ const COMPLETED_STORAGE_KEY = "gmu-course-map.completed-courses";
 const PLAN_TOKEN_STORAGE_PREFIX = "gmu-course-map.plan-token.";
 const MAX_RESULTS = 60;
 const LATER_UNLOCK_DEPTH = 3;
-const READY_NEXT_LIMIT = 12;
+const READY_NEXT_LIMIT = 4;
+const DEGREE_PROGRESS_LIMIT = 4;
+const DIRECT_MAP_LIMIT = 6;
+const LATER_MAP_LIMIT = 6;
 const SEARCH_SUGGESTION_LIMIT = 7;
 
 const state = {
@@ -315,7 +318,7 @@ function renderDegreeProgress() {
   elements.degreeProgressBar.style.width = `${progress.percent}%`;
   elements.degreeProgressBar.parentElement.setAttribute("aria-valuenow", String(progress.percent));
   elements.degreeProgressList.replaceChildren(
-    ...progress.requirements.map((stats) =>
+    ...progress.requirements.slice(0, DEGREE_PROGRESS_LIMIT).map((stats) =>
       createDegreeProgressRow(stats.requirement, stats),
     ),
   );
@@ -838,13 +841,14 @@ function renderDependencyGraph(course) {
     maxDepth: LATER_UNLOCK_DEPTH,
     laterLimit: 32,
   });
-  const directCodes = filterCodesToScope(course.unlocks || []);
+  const allDirectCodes = filterCodesToScope(course.unlocks || []);
+  const directCodes = allDirectCodes.slice(0, DIRECT_MAP_LIMIT);
   const model = buildConnectedMapModel({
     course,
     path,
     unlocksByCode: state.dataset.unlocks,
     directCodes,
-    laterLimit: 24,
+    laterLimit: LATER_MAP_LIMIT,
   });
   const requirementMetaByCode = getRequirementMetaByCode(course);
   const selectedStatus = getCourseStatus(course);
@@ -906,6 +910,7 @@ function renderDependencyGraph(course) {
         if (isCompleted(code)) return "done";
         return model.directCategoryByCode.get(code) === "blocked" ? "blocked" : "ready";
       },
+      overflowCount: Math.max(0, allDirectCodes.length - directCodes.length),
     }),
     createGraphColumn({
       step: "Two–three steps",
@@ -1084,6 +1089,8 @@ function renderPlanner() {
 }
 
 function renderBottlenecks() {
+  if (!elements.bottleneckList) return;
+
   const bottlenecks = [...state.courses]
     .filter((course) => isCourseInScope(course.code) && filterCodesToScope(course.unlocks || []).length > 0)
     .sort((first, second) => {
