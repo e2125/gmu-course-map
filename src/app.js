@@ -24,6 +24,7 @@ const COURSE_CODE_PATTERN = /\b([A-Z]{2,6})\s*(\d{3}[A-Z]?)\b/;
 const COURSE_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,6})\s*(\d{3}[A-Z]?)\b/g;
 const COMPLETED_STORAGE_KEY = "gmu-course-map.completed-courses";
 const TRANSFERRED_STORAGE_KEY = "gmu-course-map.transferred-courses";
+const PLANNED_STORAGE_KEY = "gmu-course-map.planned-courses";
 const PLAN_TOKEN_STORAGE_PREFIX = "gmu-course-map.plan-token.";
 const MAX_RESULTS = 60;
 const LATER_UNLOCK_DEPTH = 3;
@@ -42,6 +43,7 @@ const state = {
   coursesByCode: new Map(),
   completedCodes: new Set(),
   transferredCodes: new Set(),
+  plannedCodes: new Set(),
   selectedCode: "CS 211",
   activeScopeId: "cs-bs-2026",
   activePlanId: null,
@@ -93,7 +95,7 @@ const elements = {
   completedInput: document.querySelector("#completedInput"),
   masonCompletedCount: document.querySelector("#masonCompletedCount"),
   transferCount: document.querySelector("#transferCount"),
-  readyCount: document.querySelector("#readyCount"),
+  plannedCount: document.querySelector("#plannedCount"),
   readyNextList: document.querySelector("#readyNextList"),
   clearProgressButton: document.querySelector("#clearProgressButton"),
   planNameInput: document.querySelector("#planNameInput"),
@@ -111,6 +113,7 @@ const elements = {
   selectedStatus: document.querySelector("#selectedStatus"),
   degreeTag: document.querySelector("#degreeTag"),
   completedToggle: document.querySelector("#completedToggle"),
+  planToggle: document.querySelector("#planToggle"),
   impactNumber: document.querySelector("#impactNumber"),
   graphSummary: document.querySelector("#graphSummary"),
   dependencyGraph: document.querySelector("#dependencyGraph"),
@@ -168,15 +171,22 @@ function isAuditTransfer(course) {
 }
 
 function getSelectedAuditCodes() {
-  return state.auditCourses.filter((course) => course.selected).map((course) => course.code);
+  return state.auditCourses
+    .filter((course) => course.selected && course.status !== "in-progress")
+    .map((course) => course.code);
 }
 
 function updateAuditApplyButton() {
   const selectedCount = getSelectedAuditCodes().length;
-  elements.applyAuditImportButton.disabled = selectedCount === 0;
-  elements.applyAuditImportButton.textContent = selectedCount
-    ? `Add ${selectedCount} selected credit${selectedCount === 1 ? "" : "s"}`
-    : "Add selected credits";
+  const plannedCount = state.auditCourses.filter((course) => course.status === "in-progress").length;
+  elements.applyAuditImportButton.disabled = selectedCount + plannedCount === 0;
+  const importParts = [
+    selectedCount ? `${selectedCount} credit${selectedCount === 1 ? "" : "s"}` : null,
+    plannedCount ? `${plannedCount} planned` : null,
+  ].filter(Boolean);
+  elements.applyAuditImportButton.textContent = importParts.length
+    ? `Import ${importParts.join(" + ")}`
+    : "Import audit courses";
   const completedCourses = state.auditCourses.filter((course) => course.status === "completed");
   const allCompletedSelected = completedCourses.length
     && completedCourses.every((course) => course.selected);
@@ -219,7 +229,7 @@ function renderAuditAnalysis(analysis, sourceLabel) {
   const unknownCount = analysis.courses.length - knownCourses.length;
   state.auditCourses = knownCourses.map((course) => ({
     ...course,
-    selected: course.status === "completed",
+    selected: course.status === "completed" || course.status === "in-progress",
   }));
 
   elements.auditImportResults.hidden = !state.auditCourses.length;
@@ -312,19 +322,27 @@ async function analyzeAuditFile(file) {
 function applyAuditImport() {
   const selectedCourses = state.auditCourses.filter((course) => course.selected);
   if (!selectedCourses.length) return;
-  for (const course of selectedCourses) {
+  const completedCourses = selectedCourses.filter((course) => course.status !== "in-progress");
+  const plannedCourses = selectedCourses.filter((course) => course.status === "in-progress");
+  for (const course of completedCourses) {
     state.completedCodes.add(course.code);
+    state.plannedCodes.delete(course.code);
     if (isAuditTransfer(course)) {
       state.transferredCodes.add(course.code);
     } else {
       state.transferredCodes.delete(course.code);
     }
   }
+  for (const course of plannedCourses) {
+    state.completedCodes.delete(course.code);
+    state.transferredCodes.delete(course.code);
+    state.plannedCodes.add(course.code);
+  }
   saveCompletedCodes();
   markPlanDirty();
-  const transferCount = selectedCourses.filter(isAuditTransfer).length;
-  const masonCompletedCount = selectedCourses.length - transferCount;
-  state.planStatus = `${transferCount} transfer credit${transferCount === 1 ? "" : "s"} and ${masonCompletedCount} Mason-completed course${masonCompletedCount === 1 ? "" : "s"} imported.`;
+  const transferCount = completedCourses.filter(isAuditTransfer).length;
+  const masonCompletedCount = completedCourses.length - transferCount;
+  state.planStatus = `${transferCount} transfer credit${transferCount === 1 ? "" : "s"}, ${masonCompletedCount} Mason-completed course${masonCompletedCount === 1 ? "" : "s"}, and ${plannedCourses.length} in-progress course${plannedCourses.length === 1 ? "" : "s"} imported.`;
   selectCourse(state.selectedCode);
   closeAuditImport();
 }
@@ -439,12 +457,16 @@ function getScopedCourses() {
 }
 
 function addReadyCourseStats(stats) {
+  const plannedCodes = stats.codes.filter((code) => isPlanned(code));
   const readyCodes = stats.codes
     .filter((code) => {
       const course = getCourse(code);
       return course && !isCompleted(code) && isCourseReady(course);
     })
     .sort((firstCode, secondCode) => {
+      if (isPlanned(firstCode) !== isPlanned(secondCode)) {
+        return isPlanned(firstCode) ? -1 : 1;
+      }
       const firstCourse = getCourse(firstCode);
       const secondCourse = getCourse(secondCode);
       const firstUnlocks = filterCodesToScope(firstCourse?.unlocks || []).length;
@@ -457,6 +479,8 @@ function addReadyCourseStats(stats) {
 
   return {
     ...stats,
+    plannedCodes,
+    plannedCount: plannedCodes.length,
     readyCodes,
     readyCount: readyCodes.length,
   };
@@ -480,7 +504,7 @@ function createDegreeProgressRow(requirement, evaluatedStats) {
   row.dataset.complete = String(stats.complete);
   row.setAttribute(
     "aria-label",
-    `${requirement.label}: ${stats.summary}. ${stats.readyCount} ready next.`,
+    `${requirement.label}: ${stats.summary}. ${stats.plannedCount} planned but not completed. ${stats.readyCount} ready next.`,
   );
   row.addEventListener("click", () => {
     if (jumpCode) {
@@ -506,7 +530,11 @@ function createDegreeProgressRow(requirement, evaluatedStats) {
 
   const meta = document.createElement("span");
   meta.className = "degree-row-meta";
-  meta.textContent = `${stats.summary} · ${stats.readyCount} ready`;
+  meta.textContent = [
+    stats.summary,
+    stats.plannedCount ? `${stats.plannedCount} planned, not used yet` : null,
+    `${stats.readyCount} ready`,
+  ].filter(Boolean).join(" · ");
 
   top.append(label, count);
   row.append(top, track, meta);
@@ -582,6 +610,10 @@ function isTransferred(code) {
   return state.transferredCodes.has(code);
 }
 
+function isPlanned(code) {
+  return state.plannedCodes.has(code);
+}
+
 function isLogicSatisfied(logic) {
   return isLogicSatisfiedWith(logic, state.completedCodes);
 }
@@ -604,7 +636,10 @@ function applyRequirementMeta(logic, metaByCode) {
   if (!logic) return;
 
   if (logic.type === "course") {
-    metaByCode.set(logic.code, isCompleted(logic.code) ? "done" : "needed");
+    metaByCode.set(
+      logic.code,
+      isCompleted(logic.code) ? "done" : isPlanned(logic.code) ? "On plan · can satisfy" : "needed",
+    );
     return;
   }
 
@@ -613,6 +648,8 @@ function applyRequirementMeta(logic, metaByCode) {
     for (const code of collectLogicCourseCodes(logic)) {
       if (isCompleted(code)) {
         metaByCode.set(code, "done");
+      } else if (isPlanned(code)) {
+        metaByCode.set(code, groupSatisfied ? "On plan · extra option" : "On plan · can satisfy");
       } else {
         metaByCode.set(code, groupSatisfied ? "option" : "choose one");
       }
@@ -643,6 +680,13 @@ function getCourseStatus(course) {
     return { label: "Completed", tone: "done" };
   }
 
+  if (isPlanned(course.code)) {
+    return {
+      label: getProgramInfo(course.code) ? "On plan · degree option" : "On plan",
+      tone: "planned",
+    };
+  }
+
   if (requiresManualPrerequisiteReview(course)) {
     return { label: "Check catalog", tone: "blocked" };
   }
@@ -666,6 +710,10 @@ function getCodeStatus(code) {
       return { label: "Transfer credit", tone: "transfer" };
     }
     return { label: "Completed", tone: "done" };
+  }
+
+  if (isPlanned(code)) {
+    return { label: "On plan", tone: "planned" };
   }
 
   return { label: "Needed", tone: "blocked" };
@@ -771,6 +819,7 @@ function createCourseButton(code, metaText = "") {
   button.type = "button";
   button.dataset.complete = String(isCompleted(code));
   button.dataset.transfer = String(isTransferred(code));
+  button.dataset.planned = String(isPlanned(code));
 
   if (getCourse(code)) {
     button.addEventListener("click", () => selectCourse(code));
@@ -969,6 +1018,7 @@ function createGraphNode(
   button.dataset.tone = toneOverride || status.tone;
   button.dataset.current = String(isCurrent);
   button.dataset.complete = String(isCompleted(code));
+  button.dataset.planned = String(isPlanned(code));
 
   if (course) {
     button.addEventListener("click", () => selectCourse(code));
@@ -1077,7 +1127,7 @@ function renderDependencyGraph(course) {
   });
   const requirementMetaByCode = getRequirementMetaByCode(course);
   const selectedStatus = getCourseStatus(course);
-  const selectedMeta = isCompleted(course.code)
+  const selectedMeta = isCompleted(course.code) || isPlanned(course.code)
     ? selectedStatus.label
     : `${selectedStatus.label} · preview complete`;
 
@@ -1120,6 +1170,7 @@ function renderDependencyGraph(course) {
         const category = model.directCategoryByCode.get(code);
         const unlockCount = filterCodesToScope(getCourse(code)?.unlocks || []).length;
         if (isCompleted(code)) return `${getCodeStatus(code).label} · ${unlockCount} unlocks`;
+        if (isPlanned(code)) return `On plan · ${getProgramInfo(code) ? "degree option" : `${unlockCount} unlocks`}`;
         if (category === "newly-ready") return `Opens now · ${unlockCount} unlocks`;
         if (category === "already-ready") return `Already available · ${unlockCount} unlocks`;
         const candidate = getCourse(code);
@@ -1133,6 +1184,7 @@ function renderDependencyGraph(course) {
       },
       toneForCode: (code) => {
         if (isCompleted(code)) return getCodeStatus(code).tone;
+        if (isPlanned(code)) return "planned";
         return model.directCategoryByCode.get(code) === "blocked" ? "blocked" : "ready";
       },
       overflowCount: Math.max(0, allDirectCodes.length - directCodes.length),
@@ -1144,13 +1196,14 @@ function renderDependencyGraph(course) {
       codes: model.stages.later,
       emptyText: "No later branches in this focus",
       metaForCode: (code) => {
+        if (isPlanned(code)) return `On plan · ${getProgramInfo(code) ? "degree option" : "not complete"}`;
         const candidate = getCourse(code);
         if (candidate && requiresManualPrerequisiteReview(candidate)) {
           return "Check catalog";
         }
         return `${model.laterDepthByCode.get(code) || 2} steps out`;
       },
-      toneForCode: () => "later",
+      toneForCode: (code) => (isPlanned(code) ? "planned" : "later"),
       overflowCount: model.hiddenLaterCount,
     }),
   );
@@ -1296,7 +1349,7 @@ function renderPlanner() {
     state.completedCodes.size - state.transferredCodes.size,
   );
   elements.transferCount.textContent = String(state.transferredCodes.size);
-  elements.readyCount.textContent = String(readyCourses.length);
+  elements.plannedCount.textContent = String(state.plannedCodes.size);
   renderDegreeProgress();
   renderPlanSharing();
 
@@ -1362,6 +1415,8 @@ function selectCourse(code) {
   elements.completedToggle.textContent = isTransferred(course.code)
     ? "Remove Transfer Credit"
     : isCompleted(course.code) ? "Remove Complete" : "Mark Complete";
+  elements.planToggle.hidden = isCompleted(course.code);
+  elements.planToggle.textContent = isPlanned(course.code) ? "Remove from Plan" : "Add to Plan";
 
   renderDependencyGraph(course);
   renderPlanner();
@@ -1375,6 +1430,10 @@ function saveCompletedCodes() {
   localStorage.setItem(
     TRANSFERRED_STORAGE_KEY,
     JSON.stringify([...state.transferredCodes].sort(compareCourses)),
+  );
+  localStorage.setItem(
+    PLANNED_STORAGE_KEY,
+    JSON.stringify([...state.plannedCodes].sort(compareCourses)),
   );
 }
 
@@ -1392,9 +1451,18 @@ function loadCompletedCodes() {
           .filter((code) => code && state.completedCodes.has(code)),
       );
     }
+    const planned = JSON.parse(localStorage.getItem(PLANNED_STORAGE_KEY) || "[]");
+    if (Array.isArray(planned)) {
+      state.plannedCodes = new Set(
+        planned
+          .map(normalizeCourseCode)
+          .filter((code) => code && !state.completedCodes.has(code)),
+      );
+    }
   } catch {
     state.completedCodes = new Set();
     state.transferredCodes = new Set();
+    state.plannedCodes = new Set();
   }
 }
 
@@ -1429,7 +1497,14 @@ function applySharedPlan(plan, editToken = null) {
       ? plan.program_id
       : "all";
   state.completedCodes = new Set(normalizePlanCourseCodes(plan.completed_codes));
-  state.transferredCodes = new Set();
+  state.transferredCodes = new Set(
+    normalizePlanCourseCodes(plan.transferred_codes || [])
+      .filter((code) => state.completedCodes.has(code)),
+  );
+  state.plannedCodes = new Set(
+    normalizePlanCourseCodes(plan.planned_codes || [])
+      .filter((code) => !state.completedCodes.has(code)),
+  );
   state.planDirty = false;
   state.planStatus = editToken
     ? "Shared plan loaded. This browser has its private edit key."
@@ -1455,6 +1530,8 @@ function getPlanPayload() {
     name,
     program_id: state.activeScopeId,
     completed_codes: [...state.completedCodes].sort(compareCourses),
+    transferred_codes: [...state.transferredCodes].sort(compareCourses),
+    planned_codes: [...state.plannedCodes].sort(compareCourses),
   };
 }
 
@@ -1542,6 +1619,7 @@ function addCompletedCourses(rawValue) {
   for (const code of codes) {
     state.completedCodes.add(code);
     state.transferredCodes.delete(code);
+    state.plannedCodes.delete(code);
   }
 
   if (codes.length) {
@@ -1563,6 +1641,22 @@ function toggleSelectedCompleted() {
   } else {
     state.completedCodes.add(course.code);
     state.transferredCodes.delete(course.code);
+    state.plannedCodes.delete(course.code);
+  }
+
+  saveCompletedCodes();
+  markPlanDirty();
+  selectCourse(course.code);
+}
+
+function toggleSelectedPlanned() {
+  const course = getCourse(state.selectedCode);
+  if (!course || isCompleted(course.code)) return;
+
+  if (isPlanned(course.code)) {
+    state.plannedCodes.delete(course.code);
+  } else {
+    state.plannedCodes.add(course.code);
   }
 
   saveCompletedCodes();
@@ -1649,7 +1743,9 @@ elements.toggleAuditCoursesButton.addEventListener("click", () => {
   const completedCourses = state.auditCourses.filter((course) => course.status === "completed");
   const shouldSelect = !completedCourses.every((course) => course.selected);
   for (const course of state.auditCourses) {
-    course.selected = course.status === "completed" ? shouldSelect : false;
+    course.selected = course.status === "completed"
+      ? shouldSelect
+      : course.status === "in-progress";
   }
   elements.auditCourseList.replaceChildren(...state.auditCourses.map(createAuditCourseRow));
   updateAuditApplyButton();
@@ -1704,6 +1800,7 @@ elements.scopeSelect.addEventListener("change", () => {
   selectCourse(state.selectedCode);
 });
 elements.completedToggle.addEventListener("click", toggleSelectedCompleted);
+elements.planToggle.addEventListener("click", toggleSelectedPlanned);
 elements.completedForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const addedCount = addCompletedCourses(elements.completedInput.value);
@@ -1714,6 +1811,7 @@ elements.completedForm.addEventListener("submit", (event) => {
 elements.clearProgressButton.addEventListener("click", () => {
   state.completedCodes.clear();
   state.transferredCodes.clear();
+  state.plannedCodes.clear();
   saveCompletedCodes();
   markPlanDirty();
   selectCourse(state.selectedCode);

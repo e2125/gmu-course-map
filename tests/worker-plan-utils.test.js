@@ -14,11 +14,15 @@ test("server payload validation normalizes a safe plan", () => {
       name: "  Systems plan ",
       program_id: "cs-bs-2026",
       completed_codes: ["cs211", "CS 211", "math 125"],
+      transferred_codes: ["math 125", "CS 310"],
+      planned_codes: ["CS 310", "CS 211"],
     }),
     {
       name: "Systems plan",
       programId: "cs-bs-2026",
       completedCodes: ["CS 211", "MATH 125"],
+      transferredCodes: ["MATH 125"],
+      plannedCodes: ["CS 310"],
     },
   );
 });

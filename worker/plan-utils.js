@@ -21,28 +21,45 @@ export function normalizePlanPayload(value) {
     throw new PlanValidationError("Completed courses must be an array.");
   }
 
-  const completedCodes = new Set();
-  for (const rawCode of value.completed_codes) {
-    if (typeof rawCode !== "string") {
-      throw new PlanValidationError("Every completed course must be a course code.");
+  function normalizeCodes(rawCodes, label) {
+    if (!Array.isArray(rawCodes)) {
+      throw new PlanValidationError(`${label} courses must be an array.`);
     }
-    const match = rawCode.trim().toUpperCase().match(COURSE_CODE_PATTERN);
-    if (!match) {
-      throw new PlanValidationError(`Invalid course code: ${rawCode}`);
+    const codes = new Set();
+    for (const rawCode of rawCodes) {
+      if (typeof rawCode !== "string") {
+        throw new PlanValidationError(`Every ${label.toLowerCase()} course must be a course code.`);
+      }
+      const match = rawCode.trim().toUpperCase().match(COURSE_CODE_PATTERN);
+      if (!match) {
+        throw new PlanValidationError(`Invalid course code: ${rawCode}`);
+      }
+      codes.add(`${match[1]} ${match[2]}`);
     }
-    completedCodes.add(`${match[1]} ${match[2]}`);
+    if (codes.size > MAX_COURSES) {
+      throw new PlanValidationError(`A plan can contain at most ${MAX_COURSES} ${label.toLowerCase()} courses.`);
+    }
+    return codes;
   }
 
-  if (completedCodes.size > MAX_COURSES) {
-    throw new PlanValidationError(`A plan can contain at most ${MAX_COURSES} courses.`);
+  const completedCodes = normalizeCodes(value.completed_codes, "Completed");
+  const transferredCodes = normalizeCodes(value.transferred_codes || [], "Transferred");
+  const plannedCodes = normalizeCodes(value.planned_codes || [], "Planned");
+  for (const code of [...transferredCodes]) {
+    if (!completedCodes.has(code)) transferredCodes.delete(code);
   }
+  for (const code of completedCodes) plannedCodes.delete(code);
+
+  const sorted = (codes) => [...codes].sort((first, second) =>
+    first.localeCompare(second, undefined, { numeric: true }),
+  );
 
   return {
     name,
     programId,
-    completedCodes: [...completedCodes].sort((first, second) =>
-      first.localeCompare(second, undefined, { numeric: true }),
-    ),
+    completedCodes: sorted(completedCodes),
+    transferredCodes: sorted(transferredCodes),
+    plannedCodes: sorted(plannedCodes),
   };
 }
 

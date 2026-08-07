@@ -7,6 +7,8 @@ export const plans = sqliteTable("plans", {
   name: text("name").notNull(),
   programId: text("program_id").notNull(),
   completedCodes: text("completed_codes").notNull().default("[]"),
+  transferredCodes: text("transferred_codes").notNull().default("[]"),
+  plannedCodes: text("planned_codes").notNull().default("[]"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

@@ -96,6 +96,9 @@
               <button class="primary-action" id="completedToggle" type="button">
                 Mark Complete
               </button>
+              <button class="plan-toggle" id="planToggle" type="button">
+                Add to Plan
+              </button>
             </div>
           </div>
           <div class="impact-panel" aria-label="Course impact">
@@ -181,7 +184,7 @@
           </div>
 
           <form class="completed-form" id="completedForm">
-            <label for="completedInput">Add one or more course codes</label>
+            <label for="completedInput">Mark completed at Mason</label>
             <div class="completed-row">
               <input
                 id="completedInput"
@@ -204,8 +207,8 @@
               <small>transfer</small>
             </div>
             <div>
-              <span id="readyCount">0</span>
-              <small>ready now</small>
+              <span id="plannedCount">0</span>
+              <small>planned</small>
             </div>
           </div>
 
@@ -340,7 +343,7 @@
                 <span id="auditResultsSummary"></span>
               </div>
               <button class="text-button" id="toggleAuditCoursesButton" type="button">
-                Select completed
+                Select satisfied
               </button>
             </div>
             <div class="audit-course-list" id="auditCourseList"></div>
@@ -358,6 +361,6 @@
       </div>
     </section>
 
-    <script src="src/app.js?v=20260807-transfer-credit-v1" type="module"></script>
+    <script src="src/app.js?v=20260807-planned-nodes-v1" type="module"></script>
   </body>
 </html>

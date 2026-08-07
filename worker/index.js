@@ -24,6 +24,8 @@ function publicPlan(row) {
     name: row.name,
     program_id: row.program_id,
     completed_codes: JSON.parse(row.completed_codes),
+    transferred_codes: JSON.parse(row.transferred_codes || "[]"),
+    planned_codes: JSON.parse(row.planned_codes || "[]"),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -56,14 +58,16 @@ async function createPlan(request, env) {
 
   await env.DB.prepare(
     `INSERT INTO plans
-      (id, edit_token_hash, name, program_id, completed_codes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (id, edit_token_hash, name, program_id, completed_codes, transferred_codes, planned_codes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     credentials.id,
     editTokenHash,
     payload.name,
     payload.programId,
     JSON.stringify(payload.completedCodes),
+    JSON.stringify(payload.transferredCodes),
+    JSON.stringify(payload.plannedCodes),
     timestamp,
     timestamp,
   ).run();
@@ -94,12 +98,14 @@ async function updatePlan(request, planId, env) {
   const timestamp = new Date().toISOString();
   await env.DB.prepare(
     `UPDATE plans
-     SET name = ?, program_id = ?, completed_codes = ?, updated_at = ?
+     SET name = ?, program_id = ?, completed_codes = ?, transferred_codes = ?, planned_codes = ?, updated_at = ?
      WHERE id = ?`,
   ).bind(
     payload.name,
     payload.programId,
     JSON.stringify(payload.completedCodes),
+    JSON.stringify(payload.transferredCodes),
+    JSON.stringify(payload.plannedCodes),
     timestamp,
     planId,
   ).run();

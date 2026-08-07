@@ -21,6 +21,8 @@ class PlanStoreTests(unittest.TestCase):
                 "name": "Systems track",
                 "program_id": "cs-bs-2026",
                 "completed_codes": ["CS 112", "CS 211"],
+                "transferred_codes": ["CS 112"],
+                "planned_codes": ["CS 310"],
             }
         )
 
@@ -28,6 +30,8 @@ class PlanStoreTests(unittest.TestCase):
         self.assertEqual(self.store.get(plan["id"]), plan)
         self.assertNotIn("edit_token", plan)
         self.assertNotIn("edit_token_hash", plan)
+        self.assertEqual(plan["transferred_codes"], ["CS 112"])
+        self.assertEqual(plan["planned_codes"], ["CS 310"])
 
         with sqlite3.connect(self.database_path) as connection:
             stored_hash = connection.execute(
@@ -55,16 +59,18 @@ class PlanStoreTests(unittest.TestCase):
                 "name": "Changed",
                 "program_id": "cs-bs-2026",
                 "completed_codes": ["cs211", "CS 211", "math 125"],
+                "planned_codes": ["CS 310"],
             },
         )
         self.assertEqual(updated["name"], "Changed")
         self.assertEqual(updated["completed_codes"], ["CS 211", "MATH 125"])
+        self.assertEqual(updated["planned_codes"], ["CS 310"])
 
     def test_generated_migration_is_recorded_once(self):
         PlanStore(self.database_path)
         with sqlite3.connect(self.database_path) as connection:
             count = connection.execute("SELECT COUNT(*) FROM _migrations").fetchone()[0]
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 2)
 
 
 class PlanValidationTests(unittest.TestCase):
@@ -75,12 +81,16 @@ class PlanValidationTests(unittest.TestCase):
                     "name": "  My plan ",
                     "program_id": "cs-bs-2026",
                     "completed_codes": ["cs211", "CS 211", "math 125"],
+                    "transferred_codes": ["math 125"],
+                    "planned_codes": ["CS 310", "CS 211"],
                 }
             ),
             {
                 "name": "My plan",
                 "program_id": "cs-bs-2026",
                 "completed_codes": ["CS 211", "MATH 125"],
+                "transferred_codes": ["MATH 125"],
+                "planned_codes": ["CS 310"],
             },
         )
 
