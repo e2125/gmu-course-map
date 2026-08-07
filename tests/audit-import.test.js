@@ -24,6 +24,23 @@ test("keeps registered courses separate from completed courses", () => {
   assert.deepEqual(result.inProgressCodes, ["CS 211"]);
 });
 
+test("understands Mason Stellic transfer and in-progress markers", () => {
+  const result = analyzeDegreeAuditText(`
+    CS 112 Introduction to Computer Programming (4 credits) Fall '26 T
+    CS 110 Essentials of Computer Science (3 credits) Fall '26
+    CS 262 Introduction to Low-Level Programming (0 credits) remaining
+  `);
+
+  assert.deepEqual(result.completedCodes, ["CS 112"]);
+  assert.deepEqual(result.inProgressCodes, ["CS 110"]);
+  assert.equal(result.courses.find((course) => course.code === "CS 262")?.status, "review");
+});
+
+test("does not treat the zero-exception audit header as an exception detail", () => {
+  const result = analyzeDegreeAuditText("ADVISOR CGPA EXCEPTION\nEmily N/A 0");
+  assert.equal(result.exceptionDetailCount, 0);
+});
+
 test("a completed record wins when a course appears more than once", () => {
   const result = analyzeDegreeAuditText(`
     Requirement option: CS 211
@@ -41,4 +58,3 @@ test("reports exception language without applying it automatically", () => {
 
   assert.equal(result.exceptionDetailCount, 3);
 });
-

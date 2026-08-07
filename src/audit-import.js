@@ -7,7 +7,7 @@ const PASSING_GRADES = new Set([
   "D+", "D", "D-",
   "P", "S", "CR", "TR", "T",
 ]);
-const IN_PROGRESS_GRADES = new Set(["IP", "IN", "I", "REG", "ENR"]);
+const IN_PROGRESS_GRADES = new Set(["IP", "REG", "ENR"]);
 const NOT_COMPLETED_GRADES = new Set(["F", "W", "NC", "NG", "AU"]);
 const STATUS_PRIORITY = {
   review: 0,
@@ -23,7 +23,7 @@ export function normalizeAuditCourseCode(value) {
 
 function getGradeFromSegment(value) {
   const segment = value.toUpperCase().replace(/[,;|]/g, " ");
-  const explicit = segment.match(/\b(P|S|CR|TR|T|IP|IN|REG|ENR|NC|NG|AU|W)\b/);
+  const explicit = segment.match(/\b(P|S|CR|TR|T|IP|REG|ENR|NC|NG|AU|W)\b/);
   if (explicit) return explicit[1];
 
   const gradedWithCredits = segment.match(
@@ -35,10 +35,13 @@ function getGradeFromSegment(value) {
   return signedGrade?.[1] || null;
 }
 
-function getCourseStatus(grade) {
+function getCourseStatus(grade, evidence) {
   if (PASSING_GRADES.has(grade)) return "completed";
   if (IN_PROGRESS_GRADES.has(grade)) return "in-progress";
   if (NOT_COMPLETED_GRADES.has(grade)) return "not-completed";
+  const hasAcademicTerm = /\b(?:SPRING|SUMMER|FALL|WINTER)\s+'?\d{2}\b/.test(evidence);
+  const isExplicitlyRemaining = /\bREMAINING\b/.test(evidence);
+  if (hasAcademicTerm && !isExplicitlyRemaining) return "in-progress";
   return "review";
 }
 
@@ -69,7 +72,7 @@ export function analyzeDegreeAuditText(rawText) {
       const candidate = {
         code,
         grade,
-        status: getCourseStatus(grade),
+        status: getCourseStatus(grade, line.toUpperCase()),
         evidence: line,
       };
       coursesByCode.set(code, chooseStrongerEntry(coursesByCode.get(code), candidate));
@@ -80,7 +83,7 @@ export function analyzeDegreeAuditText(rawText) {
     first.code.localeCompare(second.code, undefined, { numeric: true }),
   );
   const exceptionDetailCount = (
-    text.match(/\b(exception|substitution|substituted|waiver|waived)\b/gi) || []
+    text.match(/\b(exception details?|substitution|substituted|waiver|waived)\b/gi) || []
   ).length;
 
   return {
@@ -94,4 +97,3 @@ export function analyzeDegreeAuditText(rawText) {
     exceptionDetailCount,
   };
 }
-

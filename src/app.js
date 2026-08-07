@@ -2,7 +2,7 @@ import {
   calculateProgramProgress,
   getRequirementCandidateCodes,
 } from "./degree-progress.js";
-import { analyzeDegreeAuditText } from "./audit-import.js";
+import { analyzeDegreeAuditText } from "./audit-import.js?v=20260807-stellic-v1";
 import { buildConnectedMapModel } from "./connected-map.js";
 import {
   buildCourseImpactPath,
