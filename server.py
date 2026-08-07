@@ -24,6 +24,7 @@ MAX_COURSES = 300
 COURSE_CODE_PATTERN = re.compile(r"^([A-Z]{2,6})\s*(\d{3}[A-Z]?)$")
 PROGRAM_ID_PATTERN = re.compile(r"^(all|[a-z0-9][a-z0-9-]{0,79})$")
 PLAN_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+TERM_ID_PATTERN = re.compile(r"^(?:(?:spring|summer|fall|winter)-20\d{2}|later)$")
 
 
 class PlanError(Exception):
@@ -43,6 +44,7 @@ def normalize_plan_payload(value: object) -> dict[str, object]:
     completed_values = value.get("completed_codes")
     transferred_values = value.get("transferred_codes", [])
     planned_values = value.get("planned_codes", [])
+    planned_terms_value = value.get("planned_terms", {})
     if not name or len(name) > 80:
         raise PlanError("Plan name must be between 1 and 80 characters.")
     if not PROGRAM_ID_PATTERN.fullmatch(program_id):
@@ -72,6 +74,17 @@ def normalize_plan_payload(value: object) -> dict[str, object]:
     planned_codes = normalize_codes(planned_values, "Planned")
     transferred_codes.intersection_update(completed_codes)
     planned_codes.difference_update(completed_codes)
+    if not isinstance(planned_terms_value, dict):
+        raise PlanError("Planned semesters must be an object.")
+    planned_terms: dict[str, str] = {}
+    for raw_code, raw_term_id in planned_terms_value.items():
+        code_values = normalize_codes([raw_code], "Planned")
+        code = next(iter(code_values))
+        term_id = str(raw_term_id or "").strip().lower()
+        if not TERM_ID_PATTERN.fullmatch(term_id):
+            raise PlanError(f"Invalid semester: {raw_term_id}")
+        if code in planned_codes:
+            planned_terms[code] = term_id
 
     return {
         "name": name,
@@ -79,6 +92,7 @@ def normalize_plan_payload(value: object) -> dict[str, object]:
         "completed_codes": sorted(completed_codes),
         "transferred_codes": sorted(transferred_codes),
         "planned_codes": sorted(planned_codes),
+        "planned_terms": dict(sorted(planned_terms.items())),
     }
 
 
@@ -94,6 +108,7 @@ def _public_plan(row: sqlite3.Row) -> dict[str, object]:
         "completed_codes": json.loads(row["completed_codes"]),
         "transferred_codes": json.loads(row["transferred_codes"] or "[]"),
         "planned_codes": json.loads(row["planned_codes"] or "[]"),
+        "planned_terms": json.loads(row["planned_terms"] or "{}"),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -145,8 +160,8 @@ class PlanStore:
         with self._connect() as connection:
             connection.execute(
                 """INSERT INTO plans
-                   (id, edit_token_hash, name, program_id, completed_codes, transferred_codes, planned_codes, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (id, edit_token_hash, name, program_id, completed_codes, transferred_codes, planned_codes, planned_terms, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     plan_id,
                     _hash_edit_token(edit_token),
@@ -155,6 +170,7 @@ class PlanStore:
                     json.dumps(payload["completed_codes"], separators=(",", ":")),
                     json.dumps(payload["transferred_codes"], separators=(",", ":")),
                     json.dumps(payload["planned_codes"], separators=(",", ":")),
+                    json.dumps(payload["planned_terms"], separators=(",", ":")),
                     timestamp,
                     timestamp,
                 ),
@@ -186,7 +202,7 @@ class PlanStore:
             payload = normalize_plan_payload(value)
             connection.execute(
                 """UPDATE plans
-                   SET name = ?, program_id = ?, completed_codes = ?, transferred_codes = ?, planned_codes = ?, updated_at = ?
+                   SET name = ?, program_id = ?, completed_codes = ?, transferred_codes = ?, planned_codes = ?, planned_terms = ?, updated_at = ?
                    WHERE id = ?""",
                 (
                     payload["name"],
@@ -194,6 +210,7 @@ class PlanStore:
                     json.dumps(payload["completed_codes"], separators=(",", ":")),
                     json.dumps(payload["transferred_codes"], separators=(",", ":")),
                     json.dumps(payload["planned_codes"], separators=(",", ":")),
+                    json.dumps(payload["planned_terms"], separators=(",", ":")),
                     _timestamp(),
                     plan_id,
                 ),

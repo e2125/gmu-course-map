@@ -1,6 +1,7 @@
 const COURSE_CODE_PATTERN = /^([A-Z]{2,6})\s*(\d{3}[A-Z]?)$/;
 const PROGRAM_ID_PATTERN = /^(all|[a-z0-9][a-z0-9-]{0,79})$/;
 const MAX_COURSES = 300;
+const TERM_ID_PATTERN = /^(?:(?:spring|summer|fall|winter)-20\d{2}|later)$/;
 
 export class PlanValidationError extends Error {}
 
@@ -49,6 +50,19 @@ export function normalizePlanPayload(value) {
     if (!completedCodes.has(code)) transferredCodes.delete(code);
   }
   for (const code of completedCodes) plannedCodes.delete(code);
+  const rawPlannedTerms = value.planned_terms || {};
+  if (!rawPlannedTerms || typeof rawPlannedTerms !== "object" || Array.isArray(rawPlannedTerms)) {
+    throw new PlanValidationError("Planned semesters must be an object.");
+  }
+  const plannedTerms = {};
+  for (const [rawCode, rawTermId] of Object.entries(rawPlannedTerms)) {
+    const code = normalizeCodes([rawCode], "Planned").values().next().value;
+    const termId = String(rawTermId || "").trim().toLowerCase();
+    if (!TERM_ID_PATTERN.test(termId)) {
+      throw new PlanValidationError(`Invalid semester: ${rawTermId}`);
+    }
+    if (plannedCodes.has(code)) plannedTerms[code] = termId;
+  }
 
   const sorted = (codes) => [...codes].sort((first, second) =>
     first.localeCompare(second, undefined, { numeric: true }),
@@ -60,6 +74,9 @@ export function normalizePlanPayload(value) {
     completedCodes: sorted(completedCodes),
     transferredCodes: sorted(transferredCodes),
     plannedCodes: sorted(plannedCodes),
+    plannedTerms: Object.fromEntries(
+      Object.entries(plannedTerms).sort(([first], [second]) => first.localeCompare(second)),
+    ),
   };
 }
 

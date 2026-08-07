@@ -16,6 +16,7 @@ test("server payload validation normalizes a safe plan", () => {
       completed_codes: ["cs211", "CS 211", "math 125"],
       transferred_codes: ["math 125", "CS 310"],
       planned_codes: ["CS 310", "CS 211"],
+      planned_terms: { "CS 310": "fall-2026", "CS 211": "spring-2027" },
     }),
     {
       name: "Systems plan",
@@ -23,6 +24,7 @@ test("server payload validation normalizes a safe plan", () => {
       completedCodes: ["CS 211", "MATH 125"],
       transferredCodes: ["MATH 125"],
       plannedCodes: ["CS 310"],
+      plannedTerms: { "CS 310": "fall-2026" },
     },
   );
 });

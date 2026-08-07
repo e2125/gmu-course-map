@@ -85,6 +85,15 @@
 
     <div class="app-shell">
       <main class="map-workspace" id="courseDiagram">
+        <section class="semester-plan" aria-labelledby="semesterPlanTitle">
+          <div class="semester-plan-heading">
+            <span class="section-kicker">Your timeline</span>
+            <h2 id="semesterPlanTitle">Semester plan</h2>
+            <p>Planned—not completed.</p>
+          </div>
+          <div class="semester-columns" id="semesterColumns"></div>
+        </section>
+
         <section class="course-hero" id="courseHero" aria-labelledby="courseTitle" tabindex="-1">
           <div class="course-identity">
             <p class="course-code" id="courseCode"></p>
@@ -99,6 +108,13 @@
               <button class="plan-toggle" id="planToggle" type="button">
                 Add to Plan
               </button>
+              <label class="semester-picker" for="semesterSelect">
+                <span class="sr-only">Semester for selected course</span>
+                <select id="semesterSelect" aria-label="Semester for selected course"></select>
+              </label>
+              <button class="focus-course-button" id="focusCourseButton" type="button" hidden>
+                Center in Map
+              </button>
             </div>
           </div>
           <div class="impact-panel" aria-label="Course impact">
@@ -112,7 +128,7 @@
             <div class="path-heading-copy">
               <span class="section-kicker">One connected view</span>
               <h2 id="graphTitle">See what comes before and after</h2>
-              <p>Select any course card to make it the center of the diagram.</p>
+              <p>Click a node for details. Center it only when you choose.</p>
             </div>
             <span id="graphSummary">0 courses</span>
           </div>
@@ -361,6 +377,6 @@
       </div>
     </section>
 
-    <script src="src/app.js?v=20260807-planned-nodes-v1" type="module"></script>
+    <script src="src/app.js?v=20260807-semester-ribbon-v1" type="module"></script>
   </body>
 </html>

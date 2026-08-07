@@ -25,6 +25,7 @@ const COURSE_CODE_GLOBAL_PATTERN = /\b([A-Z]{2,6})\s*(\d{3}[A-Z]?)\b/g;
 const COMPLETED_STORAGE_KEY = "gmu-course-map.completed-courses";
 const TRANSFERRED_STORAGE_KEY = "gmu-course-map.transferred-courses";
 const PLANNED_STORAGE_KEY = "gmu-course-map.planned-courses";
+const PLANNED_TERMS_STORAGE_KEY = "gmu-course-map.planned-terms";
 const PLAN_TOKEN_STORAGE_PREFIX = "gmu-course-map.plan-token.";
 const MAX_RESULTS = 60;
 const LATER_UNLOCK_DEPTH = 3;
@@ -44,7 +45,9 @@ const state = {
   completedCodes: new Set(),
   transferredCodes: new Set(),
   plannedCodes: new Set(),
+  plannedTerms: new Map(),
   selectedCode: "CS 211",
+  focusedCode: "CS 211",
   activeScopeId: "cs-bs-2026",
   activePlanId: null,
   activePlanToken: null,
@@ -82,6 +85,7 @@ const elements = {
   toggleAuditCoursesButton: document.querySelector("#toggleAuditCoursesButton"),
   applyAuditImportButton: document.querySelector("#applyAuditImportButton"),
   courseHero: document.querySelector("#courseHero"),
+  semesterColumns: document.querySelector("#semesterColumns"),
   graphPanel: document.querySelector("#graphPanel"),
   connectedMap: document.querySelector("#connectedMap"),
   courseMapEdges: document.querySelector("#courseMapEdges"),
@@ -114,6 +118,8 @@ const elements = {
   degreeTag: document.querySelector("#degreeTag"),
   completedToggle: document.querySelector("#completedToggle"),
   planToggle: document.querySelector("#planToggle"),
+  semesterSelect: document.querySelector("#semesterSelect"),
+  focusCourseButton: document.querySelector("#focusCourseButton"),
   impactNumber: document.querySelector("#impactNumber"),
   graphSummary: document.querySelector("#graphSummary"),
   dependencyGraph: document.querySelector("#dependencyGraph"),
@@ -139,6 +145,50 @@ function extractCourseCodes(value) {
     codes.add(`${match[1]} ${match[2]}`);
   }
   return [...codes].sort(compareCourses);
+}
+
+function normalizeSemesterId(value) {
+  const term = String(value || "").trim().toLowerCase();
+  return /^(?:(?:spring|summer|fall|winter)-20\d{2}|later)$/.test(term) ? term : null;
+}
+
+function getSemesterLabel(termId) {
+  if (termId === "later") return "Later";
+  const match = normalizeSemesterId(termId)?.match(/^(spring|summer|fall|winter)-(20\d{2})$/);
+  if (!match) return "Later";
+  return `${match[1][0].toUpperCase()}${match[1].slice(1)} ${match[2]}`;
+}
+
+function getSemesterOptions() {
+  const now = new Date();
+  let year = now.getFullYear();
+  let season = now.getMonth() >= 4 ? "fall" : "spring";
+  const options = [];
+  for (let index = 0; index < 4; index += 1) {
+    const id = `${season}-${year}`;
+    options.push({ id, label: getSemesterLabel(id) });
+    if (season === "fall") {
+      season = "spring";
+      year += 1;
+    } else {
+      season = "fall";
+    }
+  }
+  options.push({ id: "later", label: "Later" });
+  return options;
+}
+
+function getAuditSemesterId(course) {
+  const match = String(course.evidence || "").toLowerCase().match(
+    /\b(spring|summer|fall|winter)\s+'?(\d{2}|20\d{2})\b/,
+  );
+  if (!match) return "later";
+  const year = match[2].length === 2 ? `20${match[2]}` : match[2];
+  return normalizeSemesterId(`${match[1]}-${year}`) || "later";
+}
+
+function getPlannedSemesterId(code) {
+  return normalizeSemesterId(state.plannedTerms.get(code)) || "later";
 }
 
 function openAuditImport() {
@@ -327,6 +377,7 @@ function applyAuditImport() {
   for (const course of completedCourses) {
     state.completedCodes.add(course.code);
     state.plannedCodes.delete(course.code);
+    state.plannedTerms.delete(course.code);
     if (isAuditTransfer(course)) {
       state.transferredCodes.add(course.code);
     } else {
@@ -337,13 +388,14 @@ function applyAuditImport() {
     state.completedCodes.delete(course.code);
     state.transferredCodes.delete(course.code);
     state.plannedCodes.add(course.code);
+    state.plannedTerms.set(course.code, getAuditSemesterId(course));
   }
   saveCompletedCodes();
   markPlanDirty();
   const transferCount = completedCourses.filter(isAuditTransfer).length;
   const masonCompletedCount = completedCourses.length - transferCount;
   state.planStatus = `${transferCount} transfer credit${transferCount === 1 ? "" : "s"}, ${masonCompletedCount} Mason-completed course${masonCompletedCount === 1 ? "" : "s"}, and ${plannedCourses.length} in-progress course${plannedCourses.length === 1 ? "" : "s"} imported.`;
-  selectCourse(state.selectedCode);
+  refreshInspectedCourse();
   closeAuditImport();
 }
 
@@ -376,6 +428,87 @@ function getCourseNumber(code) {
 
 function getCourse(code) {
   return state.coursesByCode.get(code);
+}
+
+function createSemesterCourseChip(code) {
+  const button = document.createElement("button");
+  button.className = "semester-course-chip";
+  button.type = "button";
+  button.textContent = code;
+  button.title = getCourse(code)?.title || code;
+  button.addEventListener("click", () => inspectCourse(code));
+  return button;
+}
+
+function renderSemesterPlan() {
+  const baseOptions = getSemesterOptions();
+  const knownIds = new Set(baseOptions.map((option) => option.id));
+  const extraOptions = [...state.plannedTerms.values()]
+    .map(normalizeSemesterId)
+    .filter((id) => id && id !== "later" && !knownIds.has(id))
+    .sort()
+    .map((id) => ({ id, label: getSemesterLabel(id) }));
+  const options = [...extraOptions, ...baseOptions];
+  const codesByTerm = new Map(options.map((option) => [option.id, []]));
+  for (const code of [...state.plannedCodes].sort(compareCourses)) {
+    const termId = getPlannedSemesterId(code);
+    if (!codesByTerm.has(termId)) codesByTerm.set(termId, []);
+    codesByTerm.get(termId).push(code);
+  }
+
+  elements.semesterColumns.replaceChildren(
+    ...options.map((option) => {
+      const column = document.createElement("section");
+      column.className = "semester-column";
+      column.dataset.term = option.id;
+
+      const heading = document.createElement("header");
+      const label = document.createElement("strong");
+      label.textContent = option.label;
+      const count = document.createElement("span");
+      const codes = codesByTerm.get(option.id) || [];
+      count.textContent = String(codes.length);
+      heading.append(label, count);
+
+      const courses = document.createElement("div");
+      courses.className = "semester-course-list";
+      if (!codes.length) {
+        const empty = document.createElement("small");
+        empty.textContent = "No courses";
+        courses.append(empty);
+      } else {
+        const visibleCodes = codes.slice(0, 5);
+        courses.append(...visibleCodes.map(createSemesterCourseChip));
+        if (codes.length > visibleCodes.length) {
+          const more = document.createElement("small");
+          more.textContent = `+${codes.length - visibleCodes.length} more`;
+          courses.append(more);
+        }
+      }
+
+      column.append(heading, courses);
+      return column;
+    }),
+  );
+}
+
+function renderSemesterPicker() {
+  const selectedValue = isPlanned(state.selectedCode)
+    ? getPlannedSemesterId(state.selectedCode)
+    : elements.semesterSelect.value;
+  const options = getSemesterOptions();
+  if (selectedValue && !options.some((option) => option.id === selectedValue)) {
+    options.unshift({ id: selectedValue, label: getSemesterLabel(selectedValue) });
+  }
+  elements.semesterSelect.replaceChildren(
+    ...options.map((option) => {
+      const element = document.createElement("option");
+      element.value = option.id;
+      element.textContent = option.label;
+      return element;
+    }),
+  );
+  elements.semesterSelect.value = selectedValue || options[0].id;
 }
 
 function buildProgramCourseIndex(program) {
@@ -1021,7 +1154,7 @@ function createGraphNode(
   button.dataset.planned = String(isPlanned(code));
 
   if (course) {
-    button.addEventListener("click", () => selectCourse(code));
+    button.addEventListener("click", () => inspectCourse(code));
   } else {
     button.disabled = true;
   }
@@ -1086,7 +1219,7 @@ function createGraphColumn({
         createGraphNode(
           code,
           metaForCode(code),
-          markCurrent && code === state.selectedCode,
+          markCurrent && code === state.focusedCode,
           toneForCode(code),
           stage,
         ),
@@ -1350,6 +1483,7 @@ function renderPlanner() {
   );
   elements.transferCount.textContent = String(state.transferredCodes.size);
   elements.plannedCount.textContent = String(state.plannedCodes.size);
+  renderSemesterPlan();
   renderDegreeProgress();
   renderPlanSharing();
 
@@ -1391,21 +1525,14 @@ function renderBottlenecks() {
   );
 }
 
-function selectCourse(code) {
-  const course = getCourse(code);
-  if (!course) return;
-
-  state.selectedCode = code;
+function renderCourseDetails(course) {
   elements.courseCode.textContent = course.code;
   elements.courseTitle.textContent = course.title;
   elements.courseDescription.textContent = course.description || "No description found.";
 
-  const prerequisites = course.prerequisites || [];
   const unlocks = filterCodesToScope(course.unlocks || []);
   const status = getCourseStatus(course);
   elements.impactNumber.textContent = String(unlocks.length);
-  elements.requiresCount.textContent = String(prerequisites.length);
-  elements.unlocksCount.textContent = String(unlocks.length);
   elements.rawPrereqText.textContent = course.prerequisite_text || "No required prerequisite text found.";
   elements.selectedStatus.textContent = status.label;
   elements.selectedStatus.dataset.tone = status.tone;
@@ -1417,9 +1544,34 @@ function selectCourse(code) {
     : isCompleted(course.code) ? "Remove Complete" : "Mark Complete";
   elements.planToggle.hidden = isCompleted(course.code);
   elements.planToggle.textContent = isPlanned(course.code) ? "Remove from Plan" : "Add to Plan";
+  elements.semesterSelect.disabled = isCompleted(course.code);
+  renderSemesterPicker();
+  elements.focusCourseButton.hidden = course.code === state.focusedCode;
+}
 
-  renderDependencyGraph(course);
+function inspectCourse(code) {
+  const course = getCourse(code);
+  if (!course) return;
+
+  state.selectedCode = code;
+  renderCourseDetails(course);
   renderPlanner();
+}
+
+function selectCourse(code) {
+  const course = getCourse(code);
+  if (!course) return;
+
+  state.focusedCode = code;
+  inspectCourse(code);
+  renderDependencyGraph(course);
+}
+
+function refreshInspectedCourse() {
+  const selectedCourse = getCourse(state.selectedCode);
+  if (selectedCourse) inspectCourse(selectedCourse.code);
+  const focusedCourse = getCourse(state.focusedCode);
+  if (focusedCourse) renderDependencyGraph(focusedCourse);
 }
 
 function saveCompletedCodes() {
@@ -1434,6 +1586,12 @@ function saveCompletedCodes() {
   localStorage.setItem(
     PLANNED_STORAGE_KEY,
     JSON.stringify([...state.plannedCodes].sort(compareCourses)),
+  );
+  localStorage.setItem(
+    PLANNED_TERMS_STORAGE_KEY,
+    JSON.stringify(Object.fromEntries(
+      [...state.plannedTerms.entries()].sort(([first], [second]) => compareCourses(first, second)),
+    )),
   );
 }
 
@@ -1459,10 +1617,19 @@ function loadCompletedCodes() {
           .filter((code) => code && !state.completedCodes.has(code)),
       );
     }
+    const plannedTerms = JSON.parse(localStorage.getItem(PLANNED_TERMS_STORAGE_KEY) || "{}");
+    if (plannedTerms && typeof plannedTerms === "object" && !Array.isArray(plannedTerms)) {
+      state.plannedTerms = new Map(
+        Object.entries(plannedTerms)
+          .map(([code, termId]) => [normalizeCourseCode(code), normalizeSemesterId(termId)])
+          .filter(([code, termId]) => code && termId && state.plannedCodes.has(code)),
+      );
+    }
   } catch {
     state.completedCodes = new Set();
     state.transferredCodes = new Set();
     state.plannedCodes = new Set();
+    state.plannedTerms = new Map();
   }
 }
 
@@ -1505,6 +1672,11 @@ function applySharedPlan(plan, editToken = null) {
     normalizePlanCourseCodes(plan.planned_codes || [])
       .filter((code) => !state.completedCodes.has(code)),
   );
+  state.plannedTerms = new Map(
+    Object.entries(plan.planned_terms || {})
+      .map(([code, termId]) => [normalizeCourseCode(code), normalizeSemesterId(termId)])
+      .filter(([code, termId]) => code && termId && state.plannedCodes.has(code)),
+  );
   state.planDirty = false;
   state.planStatus = editToken
     ? "Shared plan loaded. This browser has its private edit key."
@@ -1532,6 +1704,9 @@ function getPlanPayload() {
     completed_codes: [...state.completedCodes].sort(compareCourses),
     transferred_codes: [...state.transferredCodes].sort(compareCourses),
     planned_codes: [...state.plannedCodes].sort(compareCourses),
+    planned_terms: Object.fromEntries(
+      [...state.plannedTerms.entries()].sort(([first], [second]) => compareCourses(first, second)),
+    ),
   };
 }
 
@@ -1620,12 +1795,13 @@ function addCompletedCourses(rawValue) {
     state.completedCodes.add(code);
     state.transferredCodes.delete(code);
     state.plannedCodes.delete(code);
+    state.plannedTerms.delete(code);
   }
 
   if (codes.length) {
     saveCompletedCodes();
     markPlanDirty();
-    selectCourse(state.selectedCode);
+    refreshInspectedCourse();
   }
 
   return codes.length;
@@ -1642,11 +1818,12 @@ function toggleSelectedCompleted() {
     state.completedCodes.add(course.code);
     state.transferredCodes.delete(course.code);
     state.plannedCodes.delete(course.code);
+    state.plannedTerms.delete(course.code);
   }
 
   saveCompletedCodes();
   markPlanDirty();
-  selectCourse(course.code);
+  refreshInspectedCourse();
 }
 
 function toggleSelectedPlanned() {
@@ -1655,13 +1832,18 @@ function toggleSelectedPlanned() {
 
   if (isPlanned(course.code)) {
     state.plannedCodes.delete(course.code);
+    state.plannedTerms.delete(course.code);
   } else {
     state.plannedCodes.add(course.code);
+    state.plannedTerms.set(
+      course.code,
+      normalizeSemesterId(elements.semesterSelect.value) || getSemesterOptions()[0].id,
+    );
   }
 
   saveCompletedCodes();
   markPlanDirty();
-  selectCourse(course.code);
+  refreshInspectedCourse();
 }
 
 async function loadCourses() {
@@ -1801,6 +1983,16 @@ elements.scopeSelect.addEventListener("change", () => {
 });
 elements.completedToggle.addEventListener("click", toggleSelectedCompleted);
 elements.planToggle.addEventListener("click", toggleSelectedPlanned);
+elements.focusCourseButton.addEventListener("click", () => selectCourse(state.selectedCode));
+elements.semesterSelect.addEventListener("change", () => {
+  if (!isPlanned(state.selectedCode)) return;
+  const termId = normalizeSemesterId(elements.semesterSelect.value);
+  if (!termId) return;
+  state.plannedTerms.set(state.selectedCode, termId);
+  saveCompletedCodes();
+  markPlanDirty();
+  refreshInspectedCourse();
+});
 elements.completedForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const addedCount = addCompletedCourses(elements.completedInput.value);
@@ -1812,9 +2004,10 @@ elements.clearProgressButton.addEventListener("click", () => {
   state.completedCodes.clear();
   state.transferredCodes.clear();
   state.plannedCodes.clear();
+  state.plannedTerms.clear();
   saveCompletedCodes();
   markPlanDirty();
-  selectCourse(state.selectedCode);
+  refreshInspectedCourse();
 });
 elements.planNameInput.addEventListener("input", () => {
   state.planName = elements.planNameInput.value;

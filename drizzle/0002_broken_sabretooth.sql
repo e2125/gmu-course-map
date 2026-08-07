@@ -1,0 +1,1 @@
+ALTER TABLE `plans` ADD `planned_terms` text DEFAULT '{}' NOT NULL;
