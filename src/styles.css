@@ -37,6 +37,7 @@ body {
     radial-gradient(circle at 6% 0%, rgba(0, 102, 51, 0.07), transparent 28rem),
     var(--page);
   color: var(--ink);
+  font-size: 14px;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -1272,23 +1273,24 @@ p {
   }
 
   .topbar {
-    height: 64px;
-    min-height: 64px;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    height: 54px;
+    min-height: 54px;
+    gap: 12px;
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
 
   .brand-mark {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
   }
 
   .search-input {
-    min-height: 43px;
+    min-height: 38px;
   }
 
   .scope-select {
-    min-height: 38px;
+    min-height: 34px;
   }
 
   .scope-meta {
@@ -1296,39 +1298,39 @@ p {
   }
 
   .app-shell {
-    grid-template-columns: minmax(0, 1fr) 300px;
-    gap: 14px;
-    height: calc(100vh - 64px);
+    grid-template-columns: minmax(0, 1fr) 270px;
+    gap: 10px;
+    height: calc(100vh - 54px);
     margin: 0;
-    padding: 12px clamp(14px, 2vw, 28px);
+    padding: 8px clamp(10px, 1.5vw, 20px);
     overflow: hidden;
   }
 
   .map-workspace {
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 9px;
+    gap: 6px;
     height: 100%;
     min-height: 0;
     overflow: hidden;
   }
 
   .course-hero {
-    grid-template-columns: minmax(0, 1fr) 124px;
+    grid-template-columns: minmax(0, 1fr) 104px;
     min-height: 0;
   }
 
   .course-identity {
-    padding: 12px 15px;
+    padding: 9px 12px;
   }
 
   .course-hero h1 {
-    margin-bottom: 4px;
-    font-size: 1.28rem;
+    margin-bottom: 2px;
+    font-size: 1.16rem;
   }
 
   .course-description {
-    margin-bottom: 8px;
-    font-size: 0.75rem;
+    margin-bottom: 5px;
+    font-size: 0.7rem;
     line-height: 1.35;
     -webkit-line-clamp: 1;
   }
@@ -1338,20 +1340,20 @@ p {
   }
 
   .impact-number {
-    font-size: 2rem;
+    font-size: 1.7rem;
   }
 
   .graph-panel {
     grid-template-rows: auto minmax(0, 1fr);
-    gap: 7px;
+    gap: 5px;
     min-height: 0;
-    padding: 11px;
+    padding: 8px;
   }
 
   .panel-heading {
     align-items: center;
-    min-height: 43px;
-    padding-bottom: 7px;
+    min-height: 36px;
+    padding-bottom: 5px;
   }
 
   .path-heading-copy h2 {
@@ -1379,7 +1381,7 @@ p {
     grid-template-columns:
       minmax(0, 0.9fr) minmax(0, 0.78fr)
       minmax(0, 1fr) minmax(0, 1fr);
-    gap: 28px;
+    gap: 20px;
     width: 100%;
     height: 100%;
     min-width: 0;
@@ -1388,13 +1390,13 @@ p {
   }
 
   .graph-column {
-    grid-template-rows: 34px minmax(0, 1fr);
-    gap: 4px;
+    grid-template-rows: 29px minmax(0, 1fr);
+    gap: 3px;
     min-height: 0;
   }
 
   .graph-column-title {
-    min-height: 34px;
+    min-height: 29px;
     padding: 0 3px;
   }
 
@@ -1413,20 +1415,20 @@ p {
   }
 
   .graph-column-body {
-    gap: 5px;
+    gap: 4px;
     min-height: 0;
     overflow: hidden;
-    padding: 6px;
+    padding: 5px;
   }
 
   .graph-node {
-    min-height: 47px;
+    min-height: 41px;
     gap: 1px;
-    padding: 6px 7px;
+    padding: 5px 6px;
   }
 
   .graph-node[data-current="true"] {
-    min-height: 74px;
+    min-height: 62px;
   }
 
   .graph-node-code {
@@ -1448,11 +1450,11 @@ p {
   }
 
   .map-status-bar {
-    min-height: 48px;
+    min-height: 40px;
   }
 
   .map-status-bar > div {
-    padding: 6px 9px;
+    padding: 4px 7px;
   }
 
   .raw-panel {
@@ -1460,7 +1462,7 @@ p {
   }
 
   .plan-rail {
-    gap: 7px;
+    gap: 5px;
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -1472,7 +1474,7 @@ p {
 
   .rail-heading h2 {
     margin: 1px 0 0;
-    font-size: 1rem;
+    font-size: 0.88rem;
   }
 
   .rail-heading p {
@@ -1482,9 +1484,9 @@ p {
   .degree-panel,
   .planner-panel,
   .plan-save-panel {
-    gap: 7px;
-    border-radius: 12px;
-    padding: 9px;
+    gap: 5px;
+    border-radius: 10px;
+    padding: 7px;
   }
 
   .degree-heading h3,
@@ -1502,8 +1504,8 @@ p {
 
   .degree-row {
     gap: 4px;
-    min-height: 35px;
-    padding: 5px 6px;
+    min-height: 30px;
+    padding: 4px 5px;
   }
 
   .degree-row-top strong {
@@ -1531,7 +1533,7 @@ p {
   .primary-action,
   .add-button,
   .secondary-button {
-    min-height: 32px;
+    min-height: 28px;
   }
 
   .planner-stats {
@@ -1539,7 +1541,7 @@ p {
   }
 
   .planner-stats div {
-    padding: 7px;
+    padding: 5px;
   }
 
   .planner-stats span {
@@ -1552,8 +1554,8 @@ p {
   }
 
   .mini-course {
-    min-height: 29px;
-    padding: 4px 6px;
+    min-height: 25px;
+    padding: 3px 5px;
   }
 
   .mini-course-label {
@@ -1613,7 +1615,7 @@ p {
   }
 
   .app-shell {
-    grid-template-columns: minmax(0, 1fr) 310px;
+    grid-template-columns: minmax(0, 1fr) 260px;
   }
 }
 
@@ -1623,7 +1625,7 @@ p {
   }
 
   .app-shell {
-    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 240px;
   }
 
   .plan-rail {
@@ -1670,9 +1672,9 @@ p {
     grid-template-columns: auto minmax(0, 1fr);
     align-content: center;
     gap: 10px;
-    height: 108px;
-    min-height: 108px;
-    padding: 11px 16px;
+    height: 92px;
+    min-height: 92px;
+    padding: 8px 12px;
   }
 
   .brand small {
@@ -1684,17 +1686,21 @@ p {
   }
 
   .brand-mark {
-    width: 34px;
-    height: 34px;
+    width: 29px;
+    height: 29px;
   }
 
   .search-input {
-    min-height: 43px;
-    font-size: 0.84rem;
+    min-height: 37px;
+    font-size: 0.78rem;
   }
 
   .degree-picker {
     grid-column: 1 / -1;
+  }
+
+  .scope-select {
+    min-height: 32px;
   }
 
   .scope-meta {
@@ -1704,15 +1710,15 @@ p {
   .app-shell {
     grid-template-columns: 1fr;
     gap: 8px;
-    height: calc(100vh - 108px);
+    height: calc(100vh - 92px);
     margin: 0;
-    padding: 9px;
+    padding: 6px;
     overflow: hidden;
   }
 
   .map-workspace {
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 7px;
+    gap: 5px;
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -1728,17 +1734,17 @@ p {
   }
 
   .course-identity {
-    padding: 10px 12px;
+    padding: 7px 9px;
   }
 
   .course-hero h1 {
     margin-bottom: 3px;
-    font-size: 1.12rem;
+    font-size: 1rem;
   }
 
   .course-description {
-    margin-bottom: 7px;
-    font-size: 0.7rem;
+    margin-bottom: 4px;
+    font-size: 0.64rem;
     line-height: 1.3;
     -webkit-line-clamp: 1;
   }
@@ -1762,8 +1768,8 @@ p {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    min-height: 40px;
-    padding-bottom: 6px;
+    min-height: 33px;
+    padding-bottom: 4px;
   }
 
   .path-heading-copy h2 {
@@ -1778,7 +1784,7 @@ p {
     grid-template-rows: auto minmax(0, 1fr);
     gap: 6px;
     min-height: 0;
-    padding: 9px;
+    padding: 6px;
   }
 
   .graph-scroll {
@@ -1789,22 +1795,74 @@ p {
   }
 
   .connected-map {
-    min-width: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 560px;
     min-height: 100%;
   }
 
   .dependency-graph {
-    grid-template-columns: 1fr;
-    gap: 40px;
-    min-width: 0;
+    grid-template-columns:
+      minmax(0, 0.9fr) minmax(0, 0.78fr)
+      minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    width: 100%;
+    height: 100%;
+    min-width: 560px;
+    min-height: 100%;
   }
 
   .graph-column {
-    grid-template-rows: auto auto;
+    grid-template-rows: 27px minmax(0, 1fr);
+    gap: 3px;
+    min-height: 0;
   }
 
   .graph-column-body {
-    min-height: auto;
+    gap: 3px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 4px;
+  }
+
+  .graph-column-title {
+    min-height: 27px;
+    padding: 0 2px;
+  }
+
+  .graph-column-title span {
+    font-size: 0.48rem;
+  }
+
+  .graph-column-title strong {
+    font-size: 0.61rem;
+  }
+
+  .graph-column-title em {
+    width: 17px;
+    height: 17px;
+    font-size: 0.52rem;
+  }
+
+  .graph-node {
+    min-height: 38px;
+    padding: 4px 5px;
+  }
+
+  .graph-node[data-current="true"] {
+    min-height: 55px;
+  }
+
+  .graph-node-code {
+    font-size: 0.62rem;
+  }
+
+  .graph-node-title {
+    font-size: 0.56rem;
+  }
+
+  .graph-node-meta {
+    font-size: 0.46rem;
   }
 
   .map-status-bar {
@@ -1832,7 +1890,7 @@ p {
 
   .course-identity,
   .graph-panel {
-    padding: 15px;
+    padding: 6px;
   }
 
   .course-actions {
