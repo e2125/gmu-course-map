@@ -89,7 +89,7 @@
           <div class="semester-plan-heading">
             <span class="section-kicker">Your timeline</span>
             <h2 id="semesterPlanTitle">Semester plan</h2>
-            <p>Planned—not completed.</p>
+            <p id="academicStatus">First-year standing · 0 earned · 120 left</p>
           </div>
           <div class="semester-columns" id="semesterColumns"></div>
         </section>
@@ -102,6 +102,7 @@
             <div class="course-actions">
               <span class="status-pill" id="selectedStatus">Not started</span>
               <span class="degree-pill" id="degreeTag">Catalog course</span>
+              <span class="credits-pill" id="courseCredits">3 credits</span>
               <button class="primary-action" id="completedToggle" type="button">
                 Mark Complete
               </button>
@@ -229,7 +230,7 @@
           </div>
 
           <div class="ready-panel">
-            <div class="micro-heading">Good options to take next</div>
+            <div class="micro-heading" id="readyNextHeading">Good options to take next</div>
             <div class="course-list compact rail-list" id="readyNextList"></div>
           </div>
         </section>
@@ -377,6 +378,6 @@
       </div>
     </section>
 
-    <script src="src/app.js?v=20260807-semester-ribbon-v1" type="module"></script>
+    <script src="src/app.js?v=20260807-progress-explanations-v1" type="module"></script>
   </body>
 </html>

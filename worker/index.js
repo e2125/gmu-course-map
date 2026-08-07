@@ -27,6 +27,8 @@ function publicPlan(row) {
     transferred_codes: JSON.parse(row.transferred_codes || "[]"),
     planned_codes: JSON.parse(row.planned_codes || "[]"),
     planned_terms: JSON.parse(row.planned_terms || "{}"),
+    earned_credits: row.earned_credits == null ? null : Number(row.earned_credits),
+    audit_completed_codes: JSON.parse(row.audit_completed_codes || "[]"),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -59,8 +61,8 @@ async function createPlan(request, env) {
 
   await env.DB.prepare(
     `INSERT INTO plans
-      (id, edit_token_hash, name, program_id, completed_codes, transferred_codes, planned_codes, planned_terms, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, edit_token_hash, name, program_id, completed_codes, transferred_codes, planned_codes, planned_terms, earned_credits, audit_completed_codes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     credentials.id,
     editTokenHash,
@@ -70,6 +72,8 @@ async function createPlan(request, env) {
     JSON.stringify(payload.transferredCodes),
     JSON.stringify(payload.plannedCodes),
     JSON.stringify(payload.plannedTerms),
+    payload.earnedCredits,
+    JSON.stringify(payload.auditCompletedCodes),
     timestamp,
     timestamp,
   ).run();
@@ -100,7 +104,7 @@ async function updatePlan(request, planId, env) {
   const timestamp = new Date().toISOString();
   await env.DB.prepare(
     `UPDATE plans
-     SET name = ?, program_id = ?, completed_codes = ?, transferred_codes = ?, planned_codes = ?, planned_terms = ?, updated_at = ?
+     SET name = ?, program_id = ?, completed_codes = ?, transferred_codes = ?, planned_codes = ?, planned_terms = ?, earned_credits = ?, audit_completed_codes = ?, updated_at = ?
      WHERE id = ?`,
   ).bind(
     payload.name,
@@ -109,6 +113,8 @@ async function updatePlan(request, planId, env) {
     JSON.stringify(payload.transferredCodes),
     JSON.stringify(payload.plannedCodes),
     JSON.stringify(payload.plannedTerms),
+    payload.earnedCredits,
+    JSON.stringify(payload.auditCompletedCodes),
     timestamp,
     planId,
   ).run();

@@ -26,13 +26,15 @@ const COMPLETED_STORAGE_KEY = "gmu-course-map.completed-courses";
 const TRANSFERRED_STORAGE_KEY = "gmu-course-map.transferred-courses";
 const PLANNED_STORAGE_KEY = "gmu-course-map.planned-courses";
 const PLANNED_TERMS_STORAGE_KEY = "gmu-course-map.planned-terms";
+const AUDIT_EARNED_CREDITS_STORAGE_KEY = "gmu-course-map.audit-earned-credits";
+const AUDIT_COMPLETED_STORAGE_KEY = "gmu-course-map.audit-completed-courses";
 const PLAN_TOKEN_STORAGE_PREFIX = "gmu-course-map.plan-token.";
 const MAX_RESULTS = 60;
 const LATER_UNLOCK_DEPTH = 3;
-const READY_NEXT_LIMIT = 4;
 const DEGREE_PROGRESS_LIMIT = 4;
 const DIRECT_MAP_LIMIT = 6;
 const LATER_MAP_LIMIT = 6;
+const EXPANDED_MAP_LIMIT = 500;
 const SEARCH_SUGGESTION_LIMIT = 7;
 
 const state = {
@@ -46,6 +48,9 @@ const state = {
   transferredCodes: new Set(),
   plannedCodes: new Set(),
   plannedTerms: new Map(),
+  auditEarnedCredits: null,
+  auditCompletedCodes: new Set(),
+  expandedMapStages: new Set(),
   selectedCode: "CS 211",
   focusedCode: "CS 211",
   activeScopeId: "cs-bs-2026",
@@ -86,6 +91,7 @@ const elements = {
   applyAuditImportButton: document.querySelector("#applyAuditImportButton"),
   courseHero: document.querySelector("#courseHero"),
   semesterColumns: document.querySelector("#semesterColumns"),
+  academicStatus: document.querySelector("#academicStatus"),
   graphPanel: document.querySelector("#graphPanel"),
   connectedMap: document.querySelector("#connectedMap"),
   courseMapEdges: document.querySelector("#courseMapEdges"),
@@ -100,6 +106,7 @@ const elements = {
   masonCompletedCount: document.querySelector("#masonCompletedCount"),
   transferCount: document.querySelector("#transferCount"),
   plannedCount: document.querySelector("#plannedCount"),
+  readyNextHeading: document.querySelector("#readyNextHeading"),
   readyNextList: document.querySelector("#readyNextList"),
   clearProgressButton: document.querySelector("#clearProgressButton"),
   planNameInput: document.querySelector("#planNameInput"),
@@ -116,6 +123,7 @@ const elements = {
   courseDescription: document.querySelector("#courseDescription"),
   selectedStatus: document.querySelector("#selectedStatus"),
   degreeTag: document.querySelector("#degreeTag"),
+  courseCredits: document.querySelector("#courseCredits"),
   completedToggle: document.querySelector("#completedToggle"),
   planToggle: document.querySelector("#planToggle"),
   semesterSelect: document.querySelector("#semesterSelect"),
@@ -189,6 +197,53 @@ function getAuditSemesterId(course) {
 
 function getPlannedSemesterId(code) {
   return normalizeSemesterId(state.plannedTerms.get(code)) || "later";
+}
+
+function getCourseCreditValue(course) {
+  const values = String(course?.credits || "").match(/\d+(?:\.\d+)?/g) || [];
+  return values.length ? Number(values.at(-1)) : 0;
+}
+
+function formatCreditNumber(value) {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(1)));
+}
+
+function formatCourseCredits(course, short = false) {
+  const rawCredits = String(course?.credits || "").trim();
+  if (!rawCredits) return short ? "Credits vary" : "Variable credits";
+  return short ? rawCredits.replace(/\s+credits?$/i, " cr") : rawCredits;
+}
+
+function sumCourseCredits(codes) {
+  return [...codes].reduce((total, code) => total + getCourseCreditValue(getCourse(code)), 0);
+}
+
+function getEarnedCredits() {
+  const currentKnownCredits = sumCourseCredits(state.completedCodes);
+  if (!Number.isFinite(state.auditEarnedCredits)) return currentKnownCredits;
+  const auditKnownCredits = sumCourseCredits(state.auditCompletedCodes);
+  const unmappedAuditCredits = Math.max(0, state.auditEarnedCredits - auditKnownCredits);
+  return unmappedAuditCredits + currentKnownCredits;
+}
+
+function getClassStanding(earnedCredits) {
+  if (earnedCredits >= 90) return "Senior";
+  if (earnedCredits >= 60) return "Junior";
+  if (earnedCredits >= 30) return "Sophomore";
+  return "First-year";
+}
+
+function renderAcademicStatus() {
+  const earnedCredits = getEarnedCredits();
+  const plannedCredits = sumCourseCredits(state.plannedCodes);
+  const totalCredits = Number(getActiveProgram()?.total_credits) || 120;
+  const remainingCredits = Math.max(0, totalCredits - earnedCredits);
+  elements.academicStatus.textContent = [
+    `${getClassStanding(earnedCredits)} standing`,
+    `${formatCreditNumber(earnedCredits)} earned`,
+    `${formatCreditNumber(remainingCredits)} left`,
+    plannedCredits ? `${formatCreditNumber(plannedCredits)} planned` : null,
+  ].filter(Boolean).join(" · ");
 }
 
 function openAuditImport() {
@@ -290,6 +345,7 @@ function renderAuditAnalysis(analysis, sourceLabel) {
   const inProgressCount = state.auditCourses.filter((course) => course.status === "in-progress").length;
   const reviewCount = state.auditCourses.filter((course) => course.status === "review").length;
   elements.auditResultsSummary.textContent = [
+    Number.isFinite(analysis.earnedCredits) ? `${analysis.earnedCredits} earned credits` : null,
     `${transferCount} transfer`,
     `${masonCompletedCount} completed at Mason`,
     `${inProgressCount} in progress at Mason`,
@@ -390,6 +446,10 @@ function applyAuditImport() {
     state.plannedCodes.add(course.code);
     state.plannedTerms.set(course.code, getAuditSemesterId(course));
   }
+  if (Number.isFinite(state.auditAnalysis?.earnedCredits)) {
+    state.auditEarnedCredits = state.auditAnalysis.earnedCredits;
+    state.auditCompletedCodes = new Set(completedCourses.map((course) => course.code));
+  }
   saveCompletedCodes();
   markPlanDirty();
   const transferCount = completedCourses.filter(isAuditTransfer).length;
@@ -434,7 +494,7 @@ function createSemesterCourseChip(code) {
   const button = document.createElement("button");
   button.className = "semester-course-chip";
   button.type = "button";
-  button.textContent = code;
+  button.textContent = `${code} · ${formatCourseCredits(getCourse(code), true)}`;
   button.title = getCourse(code)?.title || code;
   button.addEventListener("click", () => inspectCourse(code));
   return button;
@@ -882,7 +942,9 @@ function getSuggestionReason(course, query) {
     5: "Listed as a prerequisite",
   };
   const programLabel = getProgramInfo(course.code) ? getDegreeLabel(course.code) : null;
-  return [reasons[rank] || "Recommended", programLabel].filter(Boolean).join(" · ");
+  return [reasons[rank] || "Recommended", formatCourseCredits(course), programLabel]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 function selectCourseFromSearch(code) {
@@ -962,7 +1024,7 @@ function createCourseButton(code, metaText = "") {
 
   const label = document.createElement("span");
   label.className = "mini-course-label";
-  label.textContent = formatCourseLabel(code);
+  label.textContent = `${formatCourseLabel(code)} · ${formatCourseCredits(getCourse(code), true)}`;
 
   button.append(label);
 
@@ -970,6 +1032,7 @@ function createCourseButton(code, metaText = "") {
     const meta = document.createElement("span");
     meta.className = "mini-course-meta";
     meta.textContent = metaText;
+    meta.title = metaText;
     button.append(meta);
   }
 
@@ -1163,9 +1226,15 @@ function createGraphNode(
   button.addEventListener("focus", () => setMapHighlight(code));
   button.addEventListener("blur", () => setMapHighlight());
 
+  const codeLine = document.createElement("span");
+  codeLine.className = "graph-node-code-line";
   const codeText = document.createElement("span");
   codeText.className = "graph-node-code";
   codeText.textContent = code;
+  const creditsText = document.createElement("span");
+  creditsText.className = "graph-node-credits";
+  creditsText.textContent = formatCourseCredits(course, true);
+  codeLine.append(codeText, creditsText);
 
   const titleText = document.createElement("span");
   titleText.className = "graph-node-title";
@@ -1175,7 +1244,7 @@ function createGraphNode(
   meta.className = "graph-node-meta";
   meta.textContent = metaText || status.label;
 
-  button.append(codeText, titleText, meta);
+  button.append(codeLine, titleText, meta);
   return button;
 }
 
@@ -1189,10 +1258,13 @@ function createGraphColumn({
   toneForCode = () => null,
   markCurrent = false,
   overflowCount = 0,
+  expanded = false,
+  collapsible = false,
 }) {
   const column = document.createElement("section");
   column.className = "graph-column";
   column.dataset.stage = stage;
+  column.dataset.expanded = String(expanded);
   column.setAttribute("aria-label", title);
 
   const heading = document.createElement("div");
@@ -1207,6 +1279,7 @@ function createGraphColumn({
 
   const body = document.createElement("div");
   body.className = "graph-column-body";
+  body.addEventListener("scroll", scheduleMapEdgeDraw, { passive: true });
 
   if (!codes.length) {
     const empty = document.createElement("p");
@@ -1227,10 +1300,19 @@ function createGraphColumn({
     }
   }
 
-  if (overflowCount > 0) {
-    const overflow = document.createElement("p");
+  if (overflowCount > 0 || (expanded && collapsible)) {
+    const overflow = document.createElement("button");
     overflow.className = "graph-overflow";
-    overflow.textContent = `+${overflowCount} more paths beyond this view`;
+    overflow.type = "button";
+    overflow.textContent = expanded
+      ? "Show fewer courses"
+      : `Show ${overflowCount} more course${overflowCount === 1 ? "" : "s"}`;
+    overflow.addEventListener("click", () => {
+      if (expanded) state.expandedMapStages.delete(stage);
+      else state.expandedMapStages.add(stage);
+      const focusedCourse = getCourse(state.focusedCode);
+      if (focusedCourse) renderDependencyGraph(focusedCourse);
+    });
     body.append(overflow);
   }
 
@@ -1239,6 +1321,8 @@ function createGraphColumn({
 }
 
 function renderDependencyGraph(course) {
+  const nextExpanded = state.expandedMapStages.has("next");
+  const laterExpanded = state.expandedMapStages.has("later");
   const path = buildCourseImpactPath({
     course,
     coursesByCode: state.coursesByCode,
@@ -1247,16 +1331,18 @@ function renderDependencyGraph(course) {
     includeCode: isCourseInScope,
     compareCodes: compareCourses,
     maxDepth: LATER_UNLOCK_DEPTH,
-    laterLimit: 32,
+    laterLimit: EXPANDED_MAP_LIMIT,
   });
   const allDirectCodes = filterCodesToScope(course.unlocks || []);
-  const directCodes = allDirectCodes.slice(0, DIRECT_MAP_LIMIT);
+  const directCodes = nextExpanded
+    ? allDirectCodes
+    : allDirectCodes.slice(0, DIRECT_MAP_LIMIT);
   const model = buildConnectedMapModel({
     course,
     path,
     unlocksByCode: state.dataset.unlocks,
     directCodes,
-    laterLimit: LATER_MAP_LIMIT,
+    laterLimit: laterExpanded ? EXPANDED_MAP_LIMIT : LATER_MAP_LIMIT,
   });
   const requirementMetaByCode = getRequirementMetaByCode(course);
   const selectedStatus = getCourseStatus(course);
@@ -1268,12 +1354,15 @@ function renderDependencyGraph(course) {
   highlightedMapCode = null;
   const visibleCourseCount = Object.values(model.stages)
     .reduce((total, codes) => total + codes.length, 0);
-  elements.graphSummary.textContent =
-    `${visibleCourseCount} courses · ${model.edges.length} connections`;
+  const hiddenCourseCount = Math.max(0, allDirectCodes.length - directCodes.length)
+    + model.hiddenLaterCount;
+  elements.graphSummary.textContent = hiddenCourseCount
+    ? `${visibleCourseCount} shown · ${hiddenCourseCount} more available`
+    : `${visibleCourseCount} courses · ${model.edges.length} connections`;
   elements.impactNumber.textContent = String(path.newlyReady.length);
   elements.requiresCount.textContent = String(model.stages.before.length);
-  elements.unlocksCount.textContent = String(model.stages.next.length);
-  elements.laterCount.textContent = String(model.stages.later.length);
+  elements.unlocksCount.textContent = String(allDirectCodes.length);
+  elements.laterCount.textContent = String(path.later.length);
   elements.dependencyGraph.replaceChildren(
     createGraphColumn({
       step: "Before",
@@ -1321,6 +1410,8 @@ function renderDependencyGraph(course) {
         return model.directCategoryByCode.get(code) === "blocked" ? "blocked" : "ready";
       },
       overflowCount: Math.max(0, allDirectCodes.length - directCodes.length),
+      expanded: nextExpanded,
+      collapsible: true,
     }),
     createGraphColumn({
       step: "Two–three steps",
@@ -1338,6 +1429,8 @@ function renderDependencyGraph(course) {
       },
       toneForCode: (code) => (isPlanned(code) ? "planned" : "later"),
       overflowCount: model.hiddenLaterCount,
+      expanded: laterExpanded,
+      collapsible: true,
     }),
   );
   setMapHighlight();
@@ -1351,6 +1444,9 @@ function getReadyCourses() {
       return isDegreeCandidate && !isCompleted(course.code) && isCourseReady(course);
     })
     .sort((first, second) => {
+      if (isPlanned(first.code) !== isPlanned(second.code)) {
+        return isPlanned(first.code) ? -1 : 1;
+      }
       const firstUnlockCount = filterCodesToScope(first.unlocks || []).length;
       const secondUnlockCount = filterCodesToScope(second.unlocks || []).length;
       if (secondUnlockCount !== firstUnlockCount) {
@@ -1484,10 +1580,12 @@ function renderPlanner() {
   elements.transferCount.textContent = String(state.transferredCodes.size);
   elements.plannedCount.textContent = String(state.plannedCodes.size);
   renderSemesterPlan();
+  renderAcademicStatus();
   renderDegreeProgress();
   renderPlanSharing();
 
-  const readyNext = readyCourses.slice(0, READY_NEXT_LIMIT);
+  const readyNext = readyCourses;
+  elements.readyNextHeading.textContent = `Good options to take next · ${readyCourses.length}`;
   elements.readyNextList.replaceChildren();
 
   if (!readyNext.length) {
@@ -1499,7 +1597,13 @@ function renderPlanner() {
   }
 
   for (const course of readyNext) {
-    elements.readyNextList.append(createCourseButton(course.code, `${filterCodesToScope(course.unlocks || []).length} unlocks`));
+    const connectionCount = filterCodesToScope(course.unlocks || []).length;
+    elements.readyNextList.append(
+      createCourseButton(
+        course.code,
+        `${connectionCount} direct connection${connectionCount === 1 ? "" : "s"}`,
+      ),
+    );
   }
 }
 
@@ -1539,6 +1643,7 @@ function renderCourseDetails(course) {
   elements.degreeTag.textContent =
     state.activeScopeId === "all" ? "Catalog course" : getDegreeLabel(course.code);
   elements.degreeTag.dataset.focus = String(isCourseInScope(course.code));
+  elements.courseCredits.textContent = formatCourseCredits(course);
   elements.completedToggle.textContent = isTransferred(course.code)
     ? "Remove Transfer Credit"
     : isCompleted(course.code) ? "Remove Complete" : "Mark Complete";
@@ -1562,6 +1667,7 @@ function selectCourse(code) {
   const course = getCourse(code);
   if (!course) return;
 
+  if (state.focusedCode !== code) state.expandedMapStages.clear();
   state.focusedCode = code;
   inspectCourse(code);
   renderDependencyGraph(course);
@@ -1592,6 +1698,15 @@ function saveCompletedCodes() {
     JSON.stringify(Object.fromEntries(
       [...state.plannedTerms.entries()].sort(([first], [second]) => compareCourses(first, second)),
     )),
+  );
+  if (Number.isFinite(state.auditEarnedCredits)) {
+    localStorage.setItem(AUDIT_EARNED_CREDITS_STORAGE_KEY, String(state.auditEarnedCredits));
+  } else {
+    localStorage.removeItem(AUDIT_EARNED_CREDITS_STORAGE_KEY);
+  }
+  localStorage.setItem(
+    AUDIT_COMPLETED_STORAGE_KEY,
+    JSON.stringify([...state.auditCompletedCodes].sort(compareCourses)),
   );
 }
 
@@ -1625,11 +1740,24 @@ function loadCompletedCodes() {
           .filter(([code, termId]) => code && termId && state.plannedCodes.has(code)),
       );
     }
+    const auditEarned = localStorage.getItem(AUDIT_EARNED_CREDITS_STORAGE_KEY);
+    const parsedAuditEarned = auditEarned === null ? null : Number(auditEarned);
+    state.auditEarnedCredits = Number.isFinite(parsedAuditEarned) && parsedAuditEarned >= 0
+      ? parsedAuditEarned
+      : null;
+    const auditCompleted = JSON.parse(localStorage.getItem(AUDIT_COMPLETED_STORAGE_KEY) || "[]");
+    if (Array.isArray(auditCompleted)) {
+      state.auditCompletedCodes = new Set(
+        auditCompleted.map(normalizeCourseCode).filter(Boolean),
+      );
+    }
   } catch {
     state.completedCodes = new Set();
     state.transferredCodes = new Set();
     state.plannedCodes = new Set();
     state.plannedTerms = new Map();
+    state.auditEarnedCredits = null;
+    state.auditCompletedCodes = new Set();
   }
 }
 
@@ -1677,6 +1805,12 @@ function applySharedPlan(plan, editToken = null) {
       .map(([code, termId]) => [normalizeCourseCode(code), normalizeSemesterId(termId)])
       .filter(([code, termId]) => code && termId && state.plannedCodes.has(code)),
   );
+  state.auditEarnedCredits = Number.isFinite(plan.earned_credits)
+    ? plan.earned_credits
+    : null;
+  state.auditCompletedCodes = new Set(
+    normalizePlanCourseCodes(plan.audit_completed_codes || []),
+  );
   state.planDirty = false;
   state.planStatus = editToken
     ? "Shared plan loaded. This browser has its private edit key."
@@ -1707,6 +1841,10 @@ function getPlanPayload() {
     planned_terms: Object.fromEntries(
       [...state.plannedTerms.entries()].sort(([first], [second]) => compareCourses(first, second)),
     ),
+    earned_credits: Number.isFinite(state.auditEarnedCredits)
+      ? state.auditEarnedCredits
+      : null,
+    audit_completed_codes: [...state.auditCompletedCodes].sort(compareCourses),
   };
 }
 
@@ -2005,6 +2143,8 @@ elements.clearProgressButton.addEventListener("click", () => {
   state.transferredCodes.clear();
   state.plannedCodes.clear();
   state.plannedTerms.clear();
+  state.auditEarnedCredits = null;
+  state.auditCompletedCodes.clear();
   saveCompletedCodes();
   markPlanDirty();
   refreshInspectedCourse();

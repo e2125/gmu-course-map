@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const plans = sqliteTable("plans", {
   id: text("id").primaryKey(),
@@ -10,6 +10,8 @@ export const plans = sqliteTable("plans", {
   transferredCodes: text("transferred_codes").notNull().default("[]"),
   plannedCodes: text("planned_codes").notNull().default("[]"),
   plannedTerms: text("planned_terms").notNull().default("{}"),
+  earnedCredits: real("earned_credits"),
+  auditCompletedCodes: text("audit_completed_codes").notNull().default("[]"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

@@ -24,6 +24,8 @@ class PlanStoreTests(unittest.TestCase):
                 "transferred_codes": ["CS 112"],
                 "planned_codes": ["CS 310"],
                 "planned_terms": {"CS 310": "fall-2026"},
+                "earned_credits": 65,
+                "audit_completed_codes": ["CS 112", "CS 211"],
             }
         )
 
@@ -34,6 +36,7 @@ class PlanStoreTests(unittest.TestCase):
         self.assertEqual(plan["transferred_codes"], ["CS 112"])
         self.assertEqual(plan["planned_codes"], ["CS 310"])
         self.assertEqual(plan["planned_terms"], {"CS 310": "fall-2026"})
+        self.assertEqual(plan["earned_credits"], 65)
 
         with sqlite3.connect(self.database_path) as connection:
             stored_hash = connection.execute(
@@ -63,18 +66,21 @@ class PlanStoreTests(unittest.TestCase):
                 "completed_codes": ["cs211", "CS 211", "math 125"],
                 "planned_codes": ["CS 310"],
                 "planned_terms": {"CS 310": "spring-2027"},
+                "earned_credits": 68,
+                "audit_completed_codes": ["CS 211", "MATH 125"],
             },
         )
         self.assertEqual(updated["name"], "Changed")
         self.assertEqual(updated["completed_codes"], ["CS 211", "MATH 125"])
         self.assertEqual(updated["planned_codes"], ["CS 310"])
         self.assertEqual(updated["planned_terms"], {"CS 310": "spring-2027"})
+        self.assertEqual(updated["earned_credits"], 68)
 
     def test_generated_migration_is_recorded_once(self):
         PlanStore(self.database_path)
         with sqlite3.connect(self.database_path) as connection:
             count = connection.execute("SELECT COUNT(*) FROM _migrations").fetchone()[0]
-        self.assertEqual(count, 3)
+        self.assertEqual(count, 4)
 
 
 class PlanValidationTests(unittest.TestCase):
@@ -88,6 +94,8 @@ class PlanValidationTests(unittest.TestCase):
                     "transferred_codes": ["math 125"],
                     "planned_codes": ["CS 310", "CS 211"],
                     "planned_terms": {"CS 310": "fall-2026", "CS 211": "later"},
+                    "earned_credits": 65,
+                    "audit_completed_codes": ["CS 211", "MATH 125"],
                 }
             ),
             {
@@ -97,6 +105,8 @@ class PlanValidationTests(unittest.TestCase):
                 "transferred_codes": ["MATH 125"],
                 "planned_codes": ["CS 310"],
                 "planned_terms": {"CS 310": "fall-2026"},
+                "earned_credits": 65.0,
+                "audit_completed_codes": ["CS 211", "MATH 125"],
             },
         )
 

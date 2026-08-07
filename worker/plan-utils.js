@@ -46,10 +46,18 @@ export function normalizePlanPayload(value) {
   const completedCodes = normalizeCodes(value.completed_codes, "Completed");
   const transferredCodes = normalizeCodes(value.transferred_codes || [], "Transferred");
   const plannedCodes = normalizeCodes(value.planned_codes || [], "Planned");
+  const auditCompletedCodes = normalizeCodes(
+    value.audit_completed_codes || [],
+    "Audit-completed",
+  );
   for (const code of [...transferredCodes]) {
     if (!completedCodes.has(code)) transferredCodes.delete(code);
   }
   for (const code of completedCodes) plannedCodes.delete(code);
+  const earnedCredits = value.earned_credits == null ? null : Number(value.earned_credits);
+  if (earnedCredits !== null && (!Number.isFinite(earnedCredits) || earnedCredits < 0 || earnedCredits > 1000)) {
+    throw new PlanValidationError("Earned credits must be a number between 0 and 1000.");
+  }
   const rawPlannedTerms = value.planned_terms || {};
   if (!rawPlannedTerms || typeof rawPlannedTerms !== "object" || Array.isArray(rawPlannedTerms)) {
     throw new PlanValidationError("Planned semesters must be an object.");
@@ -74,6 +82,8 @@ export function normalizePlanPayload(value) {
     completedCodes: sorted(completedCodes),
     transferredCodes: sorted(transferredCodes),
     plannedCodes: sorted(plannedCodes),
+    earnedCredits,
+    auditCompletedCodes: sorted(auditCompletedCodes),
     plannedTerms: Object.fromEntries(
       Object.entries(plannedTerms).sort(([first], [second]) => first.localeCompare(second)),
     ),

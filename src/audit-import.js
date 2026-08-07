@@ -54,6 +54,7 @@ function chooseStrongerEntry(current, candidate) {
 
 export function analyzeDegreeAuditText(rawText) {
   const text = String(rawText || "").replace(/\u00a0/g, " ");
+  const compactText = text.replace(/\s+/g, " ");
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -85,6 +86,9 @@ export function analyzeDegreeAuditText(rawText) {
   const exceptionDetailCount = (
     text.match(/\b(exception details?|substitution|substituted|waiver|waived)\b/gi) || []
   ).length;
+  const creditSummary = compactText.match(
+    /\bTaken\b.{0,180}?(\d+)\s+courses?\s*\((\d+(?:\.\d+)?)\s+credits?\)\s*(\d+)\s+courses?\s*\((\d+(?:\.\d+)?)\s+credits?\)\s*(\d+)\s+courses?\s*\((\d+(?:\.\d+)?)\s+credits?\)/i,
+  );
 
   return {
     courses,
@@ -94,6 +98,9 @@ export function analyzeDegreeAuditText(rawText) {
     inProgressCodes: courses
       .filter((course) => course.status === "in-progress")
       .map((course) => course.code),
+    earnedCredits: creditSummary ? Number(creditSummary[2]) : null,
+    inProgressCredits: creditSummary ? Number(creditSummary[4]) : null,
+    reportedRemainingCredits: creditSummary ? Number(creditSummary[6]) : null,
     exceptionDetailCount,
   };
 }

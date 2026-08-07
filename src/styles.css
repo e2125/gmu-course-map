@@ -531,6 +531,7 @@ p {
 
 .status-pill,
 .degree-pill,
+.credits-pill,
 .plan-access {
   display: inline-flex;
   align-items: center;
@@ -574,6 +575,11 @@ p {
 .degree-pill[data-focus="false"] {
   background: #eef0ed;
   color: var(--muted);
+}
+
+.credits-pill {
+  background: rgba(118, 109, 141, 0.11);
+  color: var(--later);
 }
 
 .primary-action,
@@ -873,6 +879,13 @@ p {
   background: rgba(118, 109, 141, 0.055);
 }
 
+.graph-column[data-expanded="true"] .graph-column-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(118, 109, 141, 0.4) transparent;
+  scrollbar-width: thin;
+}
+
 .graph-node {
   position: relative;
   z-index: 3;
@@ -957,6 +970,24 @@ p {
   font-weight: 950;
 }
 
+.graph-node-code-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.graph-node-credits {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(118, 109, 141, 0.1);
+  color: var(--later);
+  padding: 2px 5px;
+  font-size: 0.55rem;
+  font-weight: 900;
+}
+
 .graph-node-title {
   min-width: 0;
   overflow: hidden;
@@ -989,9 +1020,17 @@ p {
 }
 
 .graph-overflow {
+  width: 100%;
   color: var(--later);
   font-weight: 800;
   text-align: center;
+}
+
+.graph-overflow:hover,
+.graph-overflow:focus-visible {
+  border-color: var(--later);
+  background: rgba(118, 109, 141, 0.1);
+  outline: 2px solid rgba(118, 109, 141, 0.12);
 }
 
 .map-status-bar {
@@ -1344,7 +1383,7 @@ p {
 
 .mini-course {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-height: 41px;
@@ -1389,7 +1428,8 @@ p {
   color: var(--red);
   font-size: 0.62rem;
   font-weight: 800;
-  white-space: nowrap;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .plan-access {
@@ -2090,7 +2130,13 @@ p {
   }
 
   .rail-list {
-    max-height: none;
+    max-height: 112px;
+    overflow-y: auto;
+  }
+
+  .planner-panel,
+  .ready-panel {
+    min-height: 0;
     overflow: hidden;
   }
 
